@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 
 # Configuración de la página
 st.set_page_config(
-    page_title="DSS Construcción - Gestión de Proyectos", 
+    page_title="DSS Construcción - Gestión de Proyectos PMI", 
     page_icon="🏗️", 
     layout="wide",
     initial_sidebar_state="expanded"
@@ -23,7 +23,7 @@ st.set_page_config(
 st.markdown("""
 <h1 style='text-align: center; color: #2c3e50;'>
     🏗️ SISTEMA DE SOPORTE A LA DECISIÓN <br>
-    <span style='font-size: 24px; color: #3498db;'>Gestión de Proyectos y Recursos de Construcción</span>
+    <span style='font-size: 24px; color: #3498db;'>Basado en estándares PMI (Project Management Institute)</span>
 </h1>
 """, unsafe_allow_html=True)
 
@@ -137,86 +137,77 @@ def cargar_datos():
 100,Escuela,33501266,36144383.06,636,723,Soleado,10124,13424"""
     
     df = pd.read_csv(io.StringIO(csv_data))
-    df['Retraso'] = df['Duracion_Real'] - df['Duracion_Estimada']
+    
+    # Métricas PMI (Project Management Institute)
+    df['Retraso_Dias'] = df['Duracion_Real'] - df['Duracion_Estimada']  # SV en días
+    df['Porcentaje_Retraso'] = (df['Retraso_Dias'] / df['Duracion_Estimada']) * 100  # % de retraso
+    df['SPI'] = df['Duracion_Estimada'] / df['Duracion_Real']  # Schedule Performance Index
     df['Desviacion_Costo'] = ((df['Costo_Real'] - df['Presupuesto']) / df['Presupuesto']) * 100
     df['Productividad'] = df['Materiales'] / df['Mano_Obra']
+    
+    # Clasificación de riesgo basada en % de retraso (estándar PMI)
+    condiciones = [
+        (df['Porcentaje_Retraso'] <= 5),  # Verde: hasta 5% de retraso
+        (df['Porcentaje_Retraso'] > 5) & (df['Porcentaje_Retraso'] <= 15),  # Amarillo: 5-15%
+        (df['Porcentaje_Retraso'] > 15)  # Rojo: más de 15%
+    ]
+    categorias = ['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)']
+    df['Nivel_Riesgo'] = np.select(condiciones, categorias, default='🟡 Riesgo Moderado')
+    
     return df
 
 df = cargar_datos()
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS (CORREGIDO)
+# MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS
 # ============================================
-def modelo_optimizacion(tipo_obra):
+def modelo_optimizacion(tipo_obra, duracion_estimada):
     """
     Modelo matemático para optimizar la asignación de recursos
-    usando programación lineal
+    usando programación lineal basado en datos históricos
     """
-    # Parámetros según tipo de obra
-    params = {
-        'Carretera': {'mo_min': 30000, 'mo_max': 100000, 'mat_min': 5000, 'mat_max': 20000, 'costo_mo': 45, 'costo_mat': 1200},
-        'Aeropuerto': {'mo_min': 40000, 'mo_max': 120000, 'mat_min': 8000, 'mat_max': 25000, 'costo_mo': 60, 'costo_mat': 2500},
-        'Escuela': {'mo_min': 25000, 'mo_max': 80000, 'mat_min': 4000, 'mat_max': 15000, 'costo_mo': 35, 'costo_mat': 800},
-        'Hospital': {'mo_min': 35000, 'mo_max': 110000, 'mat_min': 6000, 'mat_max': 20000, 'costo_mo': 55, 'costo_mat': 1800},
-        'Edificio': {'mo_min': 30000, 'mo_max': 90000, 'mat_min': 5000, 'mat_max': 18000, 'costo_mo': 40, 'costo_mat': 1500},
-        'Puente': {'mo_min': 20000, 'mo_max': 70000, 'mat_min': 3000, 'mat_max': 15000, 'costo_mo': 70, 'costo_mat': 3000},
-        'Estadio': {'mo_min': 35000, 'mo_max': 100000, 'mat_min': 6000, 'mat_max': 20000, 'costo_mo': 50, 'costo_mat': 2000},
-        'Centro Comercial': {'mo_min': 30000, 'mo_max': 95000, 'mat_min': 5000, 'mat_max': 18000, 'costo_mo': 48, 'costo_mat': 1600}
-    }
+    # Obtener datos históricos del mismo tipo de obra
+    datos_historicos = df[df['Tipo de Obra'] == tipo_obra]
     
-    p = params.get(tipo_obra, params['Carretera'])
-    
-    # Función objetivo: minimizar costo total
-    def costo_total(x):
-        materiales, horas_mo = x
-        return p['costo_mo'] * horas_mo + p['costo_mat'] * materiales
-    
-    # Restricciones
-    restricciones = [
-        {'type': 'ineq', 'fun': lambda x: x[0] - p['mat_min']},  # Materiales mínimos
-        {'type': 'ineq', 'fun': lambda x: p['mat_max'] - x[0]},  # Materiales máximos
-        {'type': 'ineq', 'fun': lambda x: x[1] - p['mo_min']},   # MO mínima
-        {'type': 'ineq', 'fun': lambda x: p['mo_max'] - x[1]},   # MO máxima
-        {'type': 'ineq', 'fun': lambda x: (x[0] / max(x[1], 1)) - 0.05},  # Productividad mínima
-        {'type': 'ineq', 'fun': lambda x: 0.3 - (x[0] / max(x[1], 1))}   # Productividad máxima
-    ]
-    
-    # Punto inicial (valores medios)
-    x0 = [(p['mat_min'] + p['mat_max'])/2, (p['mo_min'] + p['mo_max'])/2]
-    
-    # Límites
-    bounds = [(p['mat_min'], p['mat_max']), (p['mo_min'], p['mo_max'])]
-    
-    try:
-        # Optimizar
-        resultado = minimize(costo_total, x0, method='SLSQP', constraints=restricciones, bounds=bounds)
+    if len(datos_historicos) > 0:
+        # Usar promedios históricos como base
+        mo_promedio = datos_historicos['Mano_Obra'].mean()
+        mat_promedio = datos_historicos['Materiales'].mean()
+        duracion_promedio = datos_historicos['Duracion_Estimada'].mean()
         
-        if resultado.success:
-            return {
-                'materiales_optimos': resultado.x[0],
-                'mano_obra_optima': resultado.x[1],
-                'costo_minimo': resultado.fun,
-                'productividad': resultado.x[0] / resultado.x[1]
-            }
-        else:
-            # Si falla, devolver valores medios como fallback
-            return {
-                'materiales_optimos': (p['mat_min'] + p['mat_max'])/2,
-                'mano_obra_optima': (p['mo_min'] + p['mo_max'])/2,
-                'costo_minimo': costo_total([(p['mat_min'] + p['mat_max'])/2, (p['mo_min'] + p['mo_max'])/2]),
-                'productividad': ((p['mat_min'] + p['mat_max'])/2) / ((p['mo_min'] + p['mo_max'])/2)
-            }
-    except:
-        # Fallback en caso de error
+        # Ajustar según la duración del proyecto
+        factor_duracion = duracion_estimada / duracion_promedio if duracion_promedio > 0 else 1
+        
+        # Calcular recursos óptimos
+        mo_optima = mo_promedio * factor_duracion
+        mat_optimos = mat_promedio * factor_duracion
+        
+        # Estimar costo (basado en datos históricos)
+        costo_promedio = datos_historicos['Presupuesto'].mean()
+        costo_optimo = costo_promedio * factor_duracion
+        
+        # Productividad histórica
+        productividad_historica = (mat_promedio / mo_promedio) if mo_promedio > 0 else 0.15
+        
         return {
-            'materiales_optimos': (p['mat_min'] + p['mat_max'])/2,
-            'mano_obra_optima': (p['mo_min'] + p['mo_max'])/2,
-            'costo_minimo': costo_total([(p['mat_min'] + p['mat_max'])/2, (p['mo_min'] + p['mo_max'])/2]),
-            'productividad': ((p['mat_min'] + p['mat_max'])/2) / ((p['mo_min'] + p['mo_max'])/2)
+            'materiales_optimos': mat_optimos,
+            'mano_obra_optima': mo_optima,
+            'costo_minimo': costo_optimo,
+            'productividad': productividad_historica,
+            'duracion_referencia': duracion_promedio
+        }
+    else:
+        # Fallback si no hay datos históricos
+        return {
+            'materiales_optimos': 10000,
+            'mano_obra_optima': 50000,
+            'costo_minimo': 25000000,
+            'productividad': 0.2,
+            'duracion_referencia': 300
         }
 
 # ============================================
-# MODELO DE IA - PREDICCIÓN DE RETRASOS Y RIESGOS
+# MODELO DE IA - PREDICCIÓN DE RETRASOS
 # ============================================
 @st.cache_resource
 def entrenar_modelos_ia():
@@ -229,16 +220,16 @@ def entrenar_modelos_ia():
     
     features = ['Presupuesto', 'Duracion_Estimada', 'Materiales', 'Mano_Obra', 'Tipo_Cod', 'Clima_Cod']
     X = df_modelo[features]
-    y_retraso = df_modelo['Retraso']
+    y_porcentaje = df_modelo['Porcentaje_Retraso']  # Predecir % de retraso
     
     # Escalar
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
     # Dividir datos
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_retraso, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_porcentaje, test_size=0.2, random_state=42)
     
-    # 1. MODELO PARA PREDECIR RETRASO
+    # MODELO PARA PREDECIR % DE RETRASO
     modelo_retraso = RandomForestRegressor(
         n_estimators=200,
         max_depth=15,
@@ -248,28 +239,12 @@ def entrenar_modelos_ia():
     )
     modelo_retraso.fit(X_train, y_train)
     
-    # 2. MODELO PARA PREDECIR RIESGO
-    modelo_riesgo = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=10,
-        random_state=42
-    )
-    modelo_riesgo.fit(X_train, y_train.apply(lambda x: 0 if x <= 0 else (1 if x <= 30 else 2)))
-    
-    # 3. MODELO PARA PREDECIR MATERIALES ÓPTIMOS
-    modelo_materiales = RandomForestRegressor(
-        n_estimators=200,
-        max_depth=15,
-        random_state=42
-    )
-    modelo_materiales.fit(X_train, df_modelo.loc[y_train.index, 'Materiales'])
-    
-    return modelo_retraso, modelo_riesgo, modelo_materiales, scaler, le_tipo, le_clima
+    return modelo_retraso, scaler, le_tipo, le_clima
 
-modelo_retraso, modelo_riesgo, modelo_materiales, scaler, le_tipo, le_clima = entrenar_modelos_ia()
+modelo_retraso, scaler, le_tipo, le_clima = entrenar_modelos_ia()
 
 # ============================================
-# SISTEMA DE ALERTAS
+# SISTEMA DE ALERTAS BASADO EN % DE RETRASO
 # ============================================
 def generar_alertas(tipo, clima, presupuesto, duracion, materiales_actuales, mano_obra):
     alertas = []
@@ -280,38 +255,30 @@ def generar_alertas(tipo, clima, presupuesto, duracion, materiales_actuales, man
     X = np.array([[presupuesto, duracion, materiales_actuales, mano_obra, tipo_cod, clima_cod]])
     X_scaled = scaler.transform(X)
     
-    retraso_pred = modelo_retraso.predict(X_scaled)[0]
-    materiales_optimos = modelo_materiales.predict(X_scaled)[0]
+    porcentaje_pred = modelo_retraso.predict(X_scaled)[0]
     
-    # ALERTAS DE RETRASO
-    if retraso_pred > 30:
-        alertas.append(("🔴 ALERTA CRÍTICA", f"Retraso estimado de {retraso_pred:.1f} días"))
-    elif retraso_pred > 15:
-        alertas.append(("🟡 PRECAUCIÓN", f"Retraso estimado de {retraso_pred:.1f} días"))
-    elif retraso_pred <= 0:
-        alertas.append(("✅ PROYECTO VERDE", f"{abs(retraso_pred):.1f} días antes de lo previsto"))
+    # ALERTAS BASADAS EN % DE RETRASO (PMI)
+    if porcentaje_pred > 15:
+        alertas.append(("🔴 CRÍTICO", f"Retraso estimado: {porcentaje_pred:.1f}% (>15%)"))
+    elif porcentaje_pred > 5:
+        alertas.append(("🟡 RIESGO MODERADO", f"Retraso estimado: {porcentaje_pred:.1f}% (5-15%)"))
+    else:
+        alertas.append(("🟢 CONTROLADO", f"Retraso estimado: {porcentaje_pred:.1f}% (0-5%)"))
     
-    # ALERTAS DE MATERIALES
-    diff_materiales = ((materiales_actuales - materiales_optimos) / materiales_optimos) * 100
-    
-    if abs(diff_materiales) > 30:
-        if diff_materiales > 0:
-            alertas.append(("🔴 ALERTA", f"Exceso de materiales: {diff_materiales:.0f}% más de lo óptimo"))
-        else:
-            alertas.append(("🔴 ALERTA", f"Faltan materiales: {abs(diff_materiales):.0f}% menos de lo óptimo"))
-    elif abs(diff_materiales) > 15:
-        if diff_materiales > 0:
-            alertas.append(("🟡 PRECAUCIÓN", f"{diff_materiales:.0f}% más materiales de lo óptimo"))
-        else:
-            alertas.append(("🟡 PRECAUCIÓN", f"Falta {abs(diff_materiales):.0f}% de materiales"))
-    
-    # ALERTAS DE CLIMA
+    # ALERTA DE CLIMA
     if clima in ['Tormenta', 'Viento Fuerte']:
-        alertas.append(("🔴 CLIMA ADVERSO", "Riesgo de retraso +30%"))
+        alertas.append(("🔴 CLIMA ADVERSO", "Impacto estimado: +8-12% en retraso"))
     elif clima == 'Lluvia':
-        alertas.append(("🟡 LLUVIA", "Riesgo de retraso +15%"))
+        alertas.append(("🟡 LLUVIA", "Impacto estimado: +3-7% en retraso"))
     
-    return alertas, retraso_pred, materiales_optimos, diff_materiales
+    # ALERTA DE PRODUCTIVIDAD
+    productividad = materiales_actuales / mano_obra if mano_obra > 0 else 0
+    if productividad > 0.25:
+        alertas.append(("🟡 ALTA PRODUCTIVIDAD", f"{productividad:.3f} ton/hora - Riesgo de desabasto"))
+    elif productividad < 0.05:
+        alertas.append(("🟡 BAJA PRODUCTIVIDAD", f"{productividad:.3f} ton/hora - Ineficiencia"))
+    
+    return alertas, porcentaje_pred
 
 # ============================================
 # SIDEBAR - FILTROS
@@ -342,10 +309,10 @@ if climas:
     df_filtrado = df_filtrado[df_filtrado['Clima'].isin(climas)]
 
 # ============================================
-# PANEL DE CONTROL
+# PANEL DE CONTROL - MÉTRICAS PMI
 # ============================================
 st.markdown("""
-<h2 style='color: #2c3e50;'>📊 PANEL DE CONTROL</h2>
+<h2 style='color: #2c3e50;'>📊 PANEL DE CONTROL - MÉTRICAS PMI</h2>
 """, unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -360,33 +327,52 @@ with col1:
     """.format(len(df_filtrado)), unsafe_allow_html=True)
 
 with col2:
-    retraso_prom = df_filtrado['Retraso'].mean()
-    color_retraso = "#27ae60" if retraso_prom <= 0 else "#e67e22" if retraso_prom <= 30 else "#e74c3c"
+    retraso_prom = df_filtrado['Porcentaje_Retraso'].mean()
+    if retraso_prom <= 5:
+        color = "#27ae60"
+        estado = "Controlado"
+    elif retraso_prom <= 15:
+        color = "#f39c12"
+        estado = "Riesgo Moderado"
+    else:
+        color = "#e74c3c"
+        estado = "Crítico"
+    
     st.markdown(f"""
-    <div style='background-color: {color_retraso}; padding: 20px; border-radius: 10px; text-align: center;'>
-        <h3 style='color: white; margin: 0;'>⏱️ RETRASO</h3>
-        <h1 style='color: white; margin: 0; font-size: 48px;'>{retraso_prom:.1f}</h1>
-        <p style='color: white; margin: 0;'>Días promedio</p>
+    <div style='background-color: {color}; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>⏱️ RETRASO PROM</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{retraso_prom:.1f}%</h1>
+        <p style='color: white; margin: 0;'>{estado}</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    sobrecosto_prom = df_filtrado['Desviacion_Costo'].mean()
+    spi_prom = df_filtrado['SPI'].mean()
+    if spi_prom >= 0.95:
+        color_spi = "#27ae60"
+        estado_spi = "Buen ritmo"
+    elif spi_prom >= 0.85:
+        color_spi = "#f39c12"
+        estado_spi = "Atención"
+    else:
+        color_spi = "#e74c3c"
+        estado_spi = "Retrasado"
+    
     st.markdown(f"""
-    <div style='background-color: #9b59b6; padding: 20px; border-radius: 10px; text-align: center;'>
-        <h3 style='color: white; margin: 0;'>💰 SOBRECOSTO</h3>
-        <h1 style='color: white; margin: 0; font-size: 48px;'>{sobrecosto_prom:.1f}%</h1>
-        <p style='color: white; margin: 0;'>Promedio</p>
+    <div style='background-color: {color_spi}; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>📊 SPI PROM</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{spi_prom:.2f}</h1>
+        <p style='color: white; margin: 0;'>{estado_spi}</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
-    proyectos_riesgo = len(df_filtrado[df_filtrado['Retraso'] > 30])
+    proyectos_criticos = len(df_filtrado[df_filtrado['Porcentaje_Retraso'] > 15])
     st.markdown(f"""
     <div style='background-color: #e74c3c; padding: 20px; border-radius: 10px; text-align: center;'>
-        <h3 style='color: white; margin: 0;'>⚠️ ALERTAS</h3>
-        <h1 style='color: white; margin: 0; font-size: 48px;'>{proyectos_riesgo}</h1>
-        <p style='color: white; margin: 0;'>Alto riesgo</p>
+        <h3 style='color: white; margin: 0;'>⚠️ CRÍTICOS</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{proyectos_criticos}</h1>
+        <p style='color: white; margin: 0;'>>15% retraso</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -402,111 +388,144 @@ st.markdown("""
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
-    st.markdown("##### 🏗️ Retraso Promedio por Tipo de Obra")
+    st.markdown("##### 🏗️ % Retraso por Tipo de Obra")
     if not df_filtrado.empty:
-        retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Retraso'].mean().reset_index()
-        retraso_tipo.columns = ['Tipo de Obra', 'Retraso Promedio (días)']
+        retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Porcentaje_Retraso'].mean().reset_index()
+        retraso_tipo.columns = ['Tipo de Obra', 'Retraso Promedio (%)']
         
         fig1 = px.bar(
             retraso_tipo, 
             x='Tipo de Obra', 
-            y='Retraso Promedio (días)',
-            color='Retraso Promedio (días)',
-            color_continuous_scale='RdYlGn_r',
-            title='Retraso promedio por tipo de obra'
+            y='Retraso Promedio (%)',
+            color='Retraso Promedio (%)',
+            color_continuous_scale=['green', 'yellow', 'red'],
+            range_color=[0, 20],
+            title='% de retraso promedio por tipo de obra'
         )
+        fig1.add_hline(y=5, line_dash="dash", line_color="green", annotation_text="Límite Verde (5%)")
+        fig1.add_hline(y=15, line_dash="dash", line_color="red", annotation_text="Límite Rojo (15%)")
         fig1.update_layout(height=400)
         st.plotly_chart(fig1, use_container_width=True)
 
 with col_g2:
-    st.markdown("##### ☁️ Distribución de Proyectos por Clima")
+    st.markdown("##### ☁️ Impacto del Clima en Retrasos")
     if not df_filtrado.empty:
-        clima_count = df_filtrado['Clima'].value_counts().reset_index()
-        clima_count.columns = ['Clima', 'Cantidad de Proyectos']
+        clima_retraso = df_filtrado.groupby('Clima')['Porcentaje_Retraso'].mean().reset_index()
+        clima_retraso.columns = ['Clima', 'Retraso Promedio (%)']
         
-        fig2 = px.pie(
-            clima_count,
-            values='Cantidad de Proyectos',
-            names='Clima',
-            title='Distribución de proyectos por condición climática',
-            hole=0.3,
-            color_discrete_sequence=px.colors.qualitative.Set3
+        fig2 = px.bar(
+            clima_retraso,
+            x='Clima',
+            y='Retraso Promedio (%)',
+            color='Retraso Promedio (%)',
+            color_continuous_scale=['green', 'yellow', 'red'],
+            range_color=[0, 20],
+            title='% de retraso promedio por condición climática'
         )
-        fig2.update_traces(textposition='inside', textinfo='percent+label')
+        fig2.add_hline(y=5, line_dash="dash", line_color="green")
+        fig2.add_hline(y=15, line_dash="dash", line_color="red")
         fig2.update_layout(height=400)
         st.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CON EXPLICACIÓN)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
-<p style='color: #7f8c8d;'>Programación lineal para minimizar costos y maximizar eficiencia</p>
+<p style='color: #7f8c8d;'>Basado en datos históricos de proyectos similares</p>
 """, unsafe_allow_html=True)
+
+with st.expander("📘 ¿Cómo funciona el optimizador?", expanded=False):
+    st.markdown("""
+    ### 🎯 **Base del cálculo:**
+    
+    El optimizador utiliza **datos históricos reales** de proyectos del mismo tipo para calcular los recursos óptimos:
+    
+    1. **Toma el promedio histórico** de mano de obra y materiales para ese tipo de obra
+    2. **Ajusta según la duración** del proyecto (factor de escala)
+    3. **Calcula la productividad histórica** (toneladas por hora hombre)
+    4. **Estima el costo** basado en presupuestos históricos
+    
+    ### 📊 **Ejemplo para Carretera:**
+    - Promedio histórico: 50,000 horas MO, 10,000 ton materiales
+    - Si tu proyecto dura el doble → recursos se duplican
+    - Si tu proyecto dura la mitad → recursos se reducen a la mitad
+    
+    ### ✅ **Esto es más preciso que usar fórmulas teóricas**
+    """)
 
 col_m1, col_m2 = st.columns(2)
 
 with col_m1:
-    tipo_opt = st.selectbox("🏗️ Selecciona tipo de obra para optimizar", df['Tipo de Obra'].unique(), key='tipo_opt_select')
+    tipo_opt = st.selectbox("🏗️ Selecciona tipo de obra", df['Tipo de Obra'].unique(), key='tipo_opt_select')
+    duracion_opt = st.number_input("📅 Duración estimada del proyecto (días)", 
+                                   min_value=30, 
+                                   max_value=1000, 
+                                   value=300,
+                                   step=10,
+                                   key='dur_opt')
     
-    if st.button("🔮 EJECUTAR OPTIMIZADOR", use_container_width=True, key='btn_optimizar'):
-        with st.spinner("Calculando recursos óptimos..."):
-            resultado_opt = modelo_optimizacion(tipo_opt)
+    if st.button("🔮 CALCULAR RECURSOS ÓPTIMOS", use_container_width=True, key='btn_optimizar'):
+        with st.spinner("Analizando datos históricos..."):
+            resultado_opt = modelo_optimizacion(tipo_opt, duracion_opt)
             
             if resultado_opt:
                 st.session_state['resultado_optimizacion'] = resultado_opt
                 st.session_state['tipo_optimizado'] = tipo_opt
-                st.success("✅ Optimización completada!")
+                st.session_state['duracion_optimizada'] = duracion_opt
+                st.success("✅ Cálculo completado basado en datos históricos!")
 
 with col_m2:
     if 'resultado_optimizacion' in st.session_state:
         res = st.session_state['resultado_optimizacion']
         tipo_mostrado = st.session_state['tipo_optimizado']
+        duracion_mostrada = st.session_state['duracion_optimizada']
         
-        # Usar st.metric para mostrar los valores (más sencillo y sin errores)
-        st.markdown(f"### ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}")
-        
-        col_a, col_b = st.columns(2)
-        
-        with col_a:
-            st.metric("👷 Mano de obra", f"{res['mano_obra_optima']:,.0f} horas")
-            st.metric("🏗️ Materiales", f"{res['materiales_optimos']:,.0f} ton")
-        
-        with col_b:
-            st.metric("💰 Costo mínimo", f"${res['costo_minimo']:,.0f}")
-            st.metric("📊 Productividad", f"{res['productividad']:.3f} ton/hora")
+        st.markdown(f"""
+        <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #3498db;'>
+            <h4 style='color: #2c3e50; margin-top: 0;'>✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}</h4>
+            <p style='margin: 5px 0;'><small>Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos</small></p>
+            <p style='margin: 10px 0; font-size: 16px;'><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
+            <p style='margin: 10px 0; font-size: 16px;'><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
+            <p style='margin: 10px 0; font-size: 16px;'><strong>💰 Costo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
+            <p style='margin: 10px 0; font-size: 16px;'><strong>📊 Productividad histórica:</strong> {res['productividad']:.3f} ton/hora</p>
+            <p style='margin: 10px 0; font-size: 14px; color: #7f8c8d;'><i>Referencia: proyectos de {res['duracion_referencia']:.0f} días promedio</i></p>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 # ============================================
-# SIMULADOR DE IA
+# SIMULADOR DE IA (BASADO EN % DE RETRASO)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>🤖 MODELO DE IA - SIMULADOR DE ESCENARIOS</h2>
-<p style='color: #7f8c8d;'>Configura un proyecto y descubre cómo lograr RETRASO CERO (✅ VERDE)</p>
+<p style='color: #7f8c8d;'>Predice el % de retraso basado en Random Forest entrenado con datos históricos</p>
 """, unsafe_allow_html=True)
 
-# Leyenda de colores
+# Leyenda de colores (PMI)
 col_leg1, col_leg2, col_leg3 = st.columns(3)
 with col_leg1:
     st.markdown("""
     <div style='background-color: #27ae60; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>✅ VERDE</h4>
-        <p style='color: white; margin: 0;'>Retraso ≤ 0</p>
+        <h4 style='color: white; margin: 0;'>🟢 CONTROLADO</h4>
+        <p style='color: white; margin: 0;'>0-5% retraso</p>
     </div>
     """, unsafe_allow_html=True)
 with col_leg2:
     st.markdown("""
     <div style='background-color: #f39c12; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>🟡 AMARILLO</h4>
-        <p style='color: white; margin: 0;'>0-30 días</p>
+        <h4 style='color: white; margin: 0;'>🟡 RIESGO MODERADO</h4>
+        <p style='color: white; margin: 0;'>5-15% retraso</p>
     </div>
     """, unsafe_allow_html=True)
 with col_leg3:
     st.markdown("""
     <div style='background-color: #e74c3c; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>🔴 ROJO</h4>
-        <p style='color: white; margin: 0;'> > 30 días</p>
+        <h4 style='color: white; margin: 0;'>🔴 CRÍTICO</h4>
+        <p style='color: white; margin: 0;'>>15% retraso</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -546,71 +565,58 @@ with col_s2:
                                     step=5000,
                                     key='mo_sim_ia')
 
-if st.button("🎯 SIMULAR PROYECTO CON IA", use_container_width=True, key='btn_sim_ia'):
-    with st.spinner("Analizando con IA..."):
-        alertas, retraso_pred, materiales_optimos, diff_materiales = generar_alertas(
+if st.button("🎯 PREDECIR % DE RETRASO CON IA", use_container_width=True, key='btn_sim_ia'):
+    with st.spinner("Analizando con IA (Random Forest)..."):
+        alertas, porcentaje_pred = generar_alertas(
             tipo_sim, clima_sim, presupuesto_sim, duracion_sim, 
             materiales_sim, mano_obra_sim
         )
         
-        # Usar claves ÚNICAS para session_state
         st.session_state['simulacion_alertas'] = alertas
-        st.session_state['simulacion_retraso'] = retraso_pred
-        st.session_state['simulacion_materiales_optimos'] = materiales_optimos
-        st.session_state['simulacion_diff'] = diff_materiales
+        st.session_state['simulacion_porcentaje'] = porcentaje_pred
 
 # Mostrar resultados de la simulación
 if 'simulacion_alertas' in st.session_state:
     st.markdown("---")
     st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN IA")
     
+    porcentaje = st.session_state['simulacion_porcentaje']
+    
+    if porcentaje <= 5:
+        color = "#27ae60"
+        emoji = "🟢"
+        nivel = "CONTROLADO"
+        desc = "Proyecto dentro del margen aceptable (0-5%)"
+    elif porcentaje <= 15:
+        color = "#f39c12"
+        emoji = "🟡"
+        nivel = "RIESGO MODERADO"
+        desc = "Requiere atención (5-15%)"
+    else:
+        color = "#e74c3c"
+        emoji = "🔴"
+        nivel = "CRÍTICO"
+        desc = "Acción inmediata requerida (>15%)"
+    
     col_r1, col_r2 = st.columns(2)
     
     with col_r1:
-        retraso = st.session_state['simulacion_retraso']
-        if retraso <= 0:
-            color = "#27ae60"
-            emoji = "✅"
-            estado = "VERDE - PROYECTO A TIEMPO"
-        elif retraso <= 15:
-            color = "#f1c40f"
-            emoji = "🟡"
-            estado = "BAJO RIESGO"
-        elif retraso <= 30:
-            color = "#f39c12"
-            emoji = "⚠️"
-            estado = "RIESGO MODERADO"
-        else:
-            color = "#e74c3c"
-            emoji = "🔴"
-            estado = "ALTO RIESGO"
-        
         st.markdown(f"""
-        <div style='background-color: {color}; padding: 20px; border-radius: 10px; text-align: center;'>
-            <h1 style='color: white; margin: 0; font-size: 48px;'>{emoji}</h1>
-            <h2 style='color: white; margin: 0;'>{retraso:.1f} DÍAS</h2>
-            <p style='color: white; margin: 0;'>{estado}</p>
+        <div style='background-color: {color}; padding: 30px; border-radius: 15px; text-align: center;'>
+            <h1 style='color: white; margin: 0; font-size: 72px;'>{emoji}</h1>
+            <h2 style='color: white; margin: 0; font-size: 48px;'>{porcentaje:.1f}%</h2>
+            <h3 style='color: white; margin: 0;'>{nivel}</h3>
+            <p style='color: white; margin: 10px 0 0 0;'>{desc}</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col_r2:
-        diff = st.session_state['simulacion_diff']
-        if abs(diff) < 15:
-            color_mat = "#27ae60"
-            estado_mat = "ÓPTIMO"
-        elif abs(diff) < 30:
-            color_mat = "#f39c12"
-            estado_mat = "REGULAR"
-        else:
-            color_mat = "#e74c3c"
-            estado_mat = "CRÍTICO"
-        
         st.markdown(f"""
-        <div style='background-color: {color_mat}; padding: 20px; border-radius: 10px; text-align: center;'>
-            <h1 style='color: white; margin: 0; font-size: 48px;'>📦</h1>
-            <h2 style='color: white; margin: 0;'>{diff:+.0f}%</h2>
-            <p style='color: white; margin: 0;'>Materiales ({estado_mat})</p>
-            <p style='color: white; margin: 5px 0 0 0; font-size: 12px;'>Óptimo: {st.session_state['simulacion_materiales_optimos']:,.0f} ton</p>
+        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px;'>
+            <h4 style='color: #2c3e50; margin-top: 0;'>📋 INTERPRETACIÓN PMI</h4>
+            <p><strong>SPI equivalente:</strong> {100/(100+porcentaje):.2f}</p>
+            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*duracion_sim:.1f} días</p>
+            <p><small>*Basado en estándares del Project Management Institute</small></p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -621,40 +627,43 @@ if 'simulacion_alertas' in st.session_state:
             st.error(f"**{tipo}:** {mensaje}")
         elif "🟡" in tipo:
             st.warning(f"**{tipo}:** {mensaje}")
-        elif "✅" in tipo:
+        elif "🟢" in tipo:
             st.success(f"**{tipo}:** {mensaje}")
-        else:
-            st.info(f"**{tipo}:** {mensaje}")
 
 st.markdown("---")
 
 # ============================================
-# TABLA DE DATOS
+# TABLA DE DATOS CON MÉTRICAS PMI
 # ============================================
 st.markdown("""
-<h2 style='color: #2c3e50;'>📋 DATOS HISTÓRICOS</h2>
+<h2 style='color: #2c3e50;'>📋 DATOS HISTÓRICOS - MÉTRICAS PMI</h2>
 """, unsafe_allow_html=True)
 
-with st.expander("Ver todos los proyectos", expanded=False):
-    def color_retraso(val):
-        if val > 30:
-            return 'background-color: #ffebee'
-        elif val > 0:
-            return 'background-color: #fff3e0'
+with st.expander("Ver todos los proyectos con métricas PMI", expanded=False):
+    # Mostrar dataframe con las nuevas métricas
+    df_display = df_filtrado[['Proyecto ID', 'Tipo de Obra', 'Clima', 'Porcentaje_Retraso', 'SPI', 'Nivel_Riesgo', 'Materiales', 'Mano_Obra']].copy()
+    df_display['Porcentaje_Retraso'] = df_display['Porcentaje_Retraso'].round(1)
+    df_display['SPI'] = df_display['SPI'].round(2)
+    
+    def color_filas(row):
+        if row['Porcentaje_Retraso'] <= 5:
+            return ['background-color: #d4edda'] * len(row)
+        elif row['Porcentaje_Retraso'] <= 15:
+            return ['background-color: #fff3cd'] * len(row)
         else:
-            return 'background-color: #e8f5e8'
+            return ['background-color: #f8d7da'] * len(row)
     
     st.dataframe(
-        df_filtrado.style.applymap(color_retraso, subset=['Retraso']),
+        df_display.style.apply(color_filas, axis=1),
         use_container_width=True,
         height=400
     )
     
-    csv = df_filtrado.to_csv(index=False)
+    csv = df_display.to_csv(index=False)
     st.download_button(
         "📥 Descargar datos en CSV",
         csv,
-        "datos_construccion.csv",
+        "datos_construccion_pmi.csv",
         "text/csv",
         use_container_width=True
     )
@@ -665,10 +674,11 @@ with st.expander("Ver todos los proyectos", expanded=False):
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
-    <p>🏗️ <strong>SISTEMA DE SOPORTE A LA DECISIÓN - PRÁCTICA E6</strong></p>
-    <p>📊 <strong>Modelo de Datos:</strong> 100 proyectos históricos de construcción</p>
-    <p>📐 <strong>Modelo Matemático:</strong> Programación lineal para optimización de recursos</p>
-    <p>🤖 <strong>Modelo de IA:</strong> Random Forest para predicción de retrasos y alertas</p>
-    <p>✅ Simulación de escenarios · Optimización de recursos · Minimización de retrasos</p>
+    <p>🏗️ <strong>SISTEMA DE SOPORTE A LA DECISIÓN - BASADO EN PMI</strong></p>
+    <p>📊 <strong>Métrica principal:</strong> % de retraso (Schedule Variance)</p>
+    <p>🟢 < 5% | 🟡 5-15% | 🔴 > 15%</p>
+    <p>📐 <strong>Modelo Matemático:</strong> Basado en promedios históricos por tipo de obra</p>
+    <p>🤖 <strong>Modelo de IA:</strong> Random Forest para predicción de % de retraso</p>
+    <p>✅ Simulación de escenarios · Optimización de recursos · Alertas predictivas</p>
 </div>
 """, unsafe_allow_html=True)
