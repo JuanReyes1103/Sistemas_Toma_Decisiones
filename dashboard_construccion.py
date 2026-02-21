@@ -399,12 +399,41 @@ with col2:
 st.markdown("---")
 
 # ============================================
-# SIMULADOR DE IA MEJORADO
+# SIMULADOR DE IA MEJORADO CON OPTIMIZADOR
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>🤖 SIMULADOR DE ESCENARIOS CON IA</h2>
-<p style='color: #7f8c8d;'>Configura un proyecto y simula diferentes escenarios para optimizar recursos</p>
+<p style='color: #7f8c8d;'>Configura un proyecto y descubre cómo lograr RETRASO CERO (✅ VERDE)</p>
 """, unsafe_allow_html=True)
+
+# Mostrar leyenda de colores
+col_color1, col_color2, col_color3 = st.columns(3)
+with col_color1:
+    st.markdown("""
+    <div style='background-color: #27ae60; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>✅ VERDE</h4>
+        <p style='color: white; margin: 0;'>Retraso ≤ 0</p>
+        <p style='color: white; margin: 0;'>Proyecto a tiempo</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_color2:
+    st.markdown("""
+    <div style='background-color: #f39c12; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>🟡 AMARILLO</h4>
+        <p style='color: white; margin: 0;'>0-30 días</p>
+        <p style='color: white; margin: 0;'>Riesgo moderado</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_color3:
+    st.markdown("""
+    <div style='background-color: #e74c3c; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>🔴 ROJO</h4>
+        <p style='color: white; margin: 0;'> > 30 días</p>
+        <p style='color: white; margin: 0;'>Alto riesgo</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 col1, col2 = st.columns([1, 1])
 
@@ -445,129 +474,287 @@ with col1:
                               value=50000,
                               step=5000)
     
-    if st.button("🎯 SIMULAR ESCENARIO", use_container_width=True):
-        try:
-            tipo_cod = le_tipo.transform([tipo_sim])[0]
-            clima_cod = le_clima.transform([clima_sim])[0]
-            
-            X_sim = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
-                              mano_obra_sim, tipo_cod, clima_cod]])
-            X_sim_scaled = scaler.transform(X_sim)
-            
-            retraso_pred = modelo.predict(X_sim_scaled)[0]
-            
-            st.session_state['retraso_sim'] = retraso_pred
-            st.session_state['parametros_sim'] = {
-                'tipo': tipo_sim,
-                'clima': clima_sim,
-                'presupuesto': presupuesto_sim,
-                'duracion': duracion_sim,
-                'materiales': materiales_sim,
-                'mano_obra': mano_obra_sim
-            }
-            
-            # Generar escenarios
-            escenarios = []
-            
-            # Actual
-            escenarios.append({'nombre': 'Actual', 'retraso': retraso_pred, 'color': '#3498db'})
-            
-            # +20% mano obra
-            X1 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
-                           mano_obra_sim * 1.2, tipo_cod, clima_cod]])
-            X1_scaled = scaler.transform(X1)
-            escenarios.append({'nombre': '+20% MO', 'retraso': modelo.predict(X1_scaled)[0], 'color': '#2ecc71'})
-            
-            # +20% materiales
-            X2 = np.array([[presupuesto_sim, duracion_sim, materiales_sim * 1.2, 
-                           mano_obra_sim, tipo_cod, clima_cod]])
-            X2_scaled = scaler.transform(X2)
-            escenarios.append({'nombre': '+20% Mat', 'retraso': modelo.predict(X2_scaled)[0], 'color': '#f39c12'})
-            
-            # Clima soleado
-            clima_sol_cod = le_clima.transform(['Soleado'])[0]
-            X3 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
-                           mano_obra_sim, tipo_cod, clima_sol_cod]])
-            X3_scaled = scaler.transform(X3)
-            escenarios.append({'nombre': 'Soleado', 'retraso': modelo.predict(X3_scaled)[0], 'color': '#9b59b6'})
-            
-            st.session_state['escenarios'] = escenarios
-            
-        except Exception as e:
-            st.error(f"Error en simulación: {e}")
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("🎯 SIMULAR", use_container_width=True):
+            try:
+                tipo_cod = le_tipo.transform([tipo_sim])[0]
+                clima_cod = le_clima.transform([clima_sim])[0]
+                
+                X_sim = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                                  mano_obra_sim, tipo_cod, clima_cod]])
+                X_sim_scaled = scaler.transform(X_sim)
+                
+                retraso_pred = modelo.predict(X_sim_scaled)[0]
+                
+                st.session_state['retraso_sim'] = retraso_pred
+                st.session_state['parametros_sim'] = {
+                    'tipo': tipo_sim,
+                    'clima': clima_sim,
+                    'presupuesto': presupuesto_sim,
+                    'duracion': duracion_sim,
+                    'materiales': materiales_sim,
+                    'mano_obra': mano_obra_sim
+                }
+                
+                # Generar escenarios
+                escenarios = []
+                escenarios.append({'nombre': 'Actual', 'retraso': retraso_pred, 'color': '#3498db'})
+                
+                # +20% mano obra
+                X1 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                               mano_obra_sim * 1.2, tipo_cod, clima_cod]])
+                X1_scaled = scaler.transform(X1)
+                escenarios.append({'nombre': '+20% MO', 'retraso': modelo.predict(X1_scaled)[0], 'color': '#2ecc71'})
+                
+                # +20% materiales
+                X2 = np.array([[presupuesto_sim, duracion_sim, materiales_sim * 1.2, 
+                               mano_obra_sim, tipo_cod, clima_cod]])
+                X2_scaled = scaler.transform(X2)
+                escenarios.append({'nombre': '+20% Mat', 'retraso': modelo.predict(X2_scaled)[0], 'color': '#f39c12'})
+                
+                # Clima soleado
+                clima_sol_cod = le_clima.transform(['Soleado'])[0]
+                X3 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                               mano_obra_sim, tipo_cod, clima_sol_cod]])
+                X3_scaled = scaler.transform(X3)
+                escenarios.append({'nombre': 'Soleado', 'retraso': modelo.predict(X3_scaled)[0], 'color': '#9b59b6'})
+                
+                st.session_state['escenarios'] = escenarios
+                
+            except Exception as e:
+                st.error(f"Error: {e}")
+    
+    with col_btn2:
+        if st.button("🎯 OPTIMIZAR PARA VERDE", use_container_width=True):
+            try:
+                tipo_cod = le_tipo.transform([tipo_sim])[0]
+                
+                # Buscar valores óptimos
+                mejores_params = None
+                mejor_retraso = float('inf')
+                
+                # Probar combinaciones de mano de obra y materiales
+                for mo_mult in [1.0, 1.2, 1.5, 1.8, 2.0]:
+                    for mat_mult in [0.8, 1.0, 1.2, 1.5]:
+                        for clima_test in ['Soleado', 'Nublado']:
+                            clima_test_cod = le_clima.transform([clima_test])[0]
+                            
+                            X_test = np.array([[
+                                presupuesto_sim, 
+                                duracion_sim, 
+                                materiales_sim * mat_mult, 
+                                mano_obra_sim * mo_mult, 
+                                tipo_cod, 
+                                clima_test_cod
+                            ]])
+                            X_test_scaled = scaler.transform(X_test)
+                            retraso_test = modelo.predict(X_test_scaled)[0]
+                            
+                            if retraso_test < mejor_retraso:
+                                mejor_retraso = retraso_test
+                                mejores_params = {
+                                    'clima': clima_test,
+                                    'materiales': materiales_sim * mat_mult,
+                                    'mano_obra': mano_obra_sim * mo_mult,
+                                    'mult_mo': mo_mult,
+                                    'mult_mat': mat_mult
+                                }
+                
+                if mejores_params and mejor_retraso <= 0:
+                    st.session_state['optimo_encontrado'] = True
+                    st.session_state['mejores_params'] = mejores_params
+                    st.session_state['mejor_retraso'] = mejor_retraso
+                else:
+                    st.warning("No se encontró combinación que dé retraso ≤ 0. Prueba aumentar más la mano de obra.")
+                    
+            except Exception as e:
+                st.error(f"Error en optimización: {e}")
 
 with col2:
     if 'retraso_sim' in st.session_state:
         retraso = st.session_state['retraso_sim']
         
-        # Resultado
+        # Determinar color y mensaje
         if retraso <= 0:
-            st.markdown(f"""
-            <div style='background-color: #27ae60; padding: 20px; border-radius: 10px; text-align: center;'>
-                <h2 style='color: white; margin: 0;'>✅ RESULTADO</h2>
-                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
-                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
-                <p style='color: white; margin: 10px 0 0 0;'>¡Proyecto a tiempo!</p>
-            </div>
-            """, unsafe_allow_html=True)
+            bg_color = "#27ae60"
+            emoji = "✅"
+            mensaje = "¡PROYECTO A TIEMPO!"
         elif retraso <= 30:
-            st.markdown(f"""
-            <div style='background-color: #f39c12; padding: 20px; border-radius: 10px; text-align: center;'>
-                <h2 style='color: white; margin: 0;'>⚠️ RESULTADO</h2>
-                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
-                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
-                <p style='color: white; margin: 10px 0 0 0;'>Riesgo moderado</p>
-            </div>
-            """, unsafe_allow_html=True)
+            bg_color = "#f39c12"
+            emoji = "⚠️"
+            mensaje = "RIESGO MODERADO"
         else:
-            st.markdown(f"""
-            <div style='background-color: #e74c3c; padding: 20px; border-radius: 10px; text-align: center;'>
-                <h2 style='color: white; margin: 0;'>🔴 RESULTADO</h2>
-                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
-                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
-                <p style='color: white; margin: 10px 0 0 0;'>¡ALTO RIESGO!</p>
+            bg_color = "#e74c3c"
+            emoji = "🔴"
+            mensaje = "ALTO RIESGO"
+        
+        st.markdown(f"""
+        <div style='background-color: {bg_color}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h2 style='color: white; margin: 0;'>{emoji} RESULTADO</h2>
+            <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
+            <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
+            <p style='color: white; margin: 10px 0 0 0; font-size: 18px;'>{mensaje}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Mostrar umbrales actuales
+        st.markdown("---")
+        st.markdown("##### 📊 TU POSICIÓN ACTUAL")
+        
+        col_g1, col_g2, col_g3 = st.columns(3)
+        with col_g1:
+            st.markdown("""
+            <div style='text-align: center;'>
+                <p style='color: #27ae60; font-size: 20px; margin: 0;'>⬇️ 0</p>
+                <p style='font-size: 12px;'>Verde</p>
             </div>
             """, unsafe_allow_html=True)
+        with col_g2:
+            st.markdown(f"""
+            <div style='text-align: center;'>
+                <p style='color: #f39c12; font-size: 20px; margin: 0;'>⬇️ {retraso:.1f}</p>
+                <p style='font-size: 12px;'>Tu retraso</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_g3:
+            st.markdown("""
+            <div style='text-align: center;'>
+                <p style='color: #e74c3c; font-size: 20px; margin: 0;'>30 ⬆️</p>
+                <p style='font-size: 12px;'>Rojo</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Barra de progreso del riesgo
+        if retraso > 0:
+            progreso = min(retraso / 30, 1.0) if retraso <= 30 else 1.0
+            st.progress(progreso)
         
         st.markdown("---")
         
-        # Recomendaciones
-        st.markdown("##### 💡 RECOMENDACIONES")
+        # Recomendaciones personalizadas
+        st.markdown("##### 💡 CÓMO LLEGAR A VERDE")
         
         if retraso > 30:
-            st.error("🔴 **ACCIÓN INMEDIATA:**")
-            st.markdown("- Aumentar mano de obra 20%")
-            st.markdown("- Implementar turnos extras")
-            if clima_sim in ['Tormenta', 'Lluvia', 'Viento Fuerte']:
-                st.markdown("- Protecciones climáticas")
+            st.error("🔴 **PARA ALCANZAR VERDE NECESITAS:**")
+            st.markdown(f"- **Aumentar mano de obra** en al menos {max(20, int((retraso-30)/2))}%")
+            st.markdown("- **Mejorar condiciones climáticas** (protecciones)")
+            st.markdown("- **Optimizar logística de materiales**")
+            
+            # Cálculo estimado
+            mo_necesaria = mano_obra_sim * (1 + (retraso/50))
+            st.info(f"📊 **Sugerencia:** Aprox. {mo_necesaria:,.0f} horas de mano de obra")
+            
         elif retraso > 0:
-            st.warning("🟡 **ACCIONES PREVENTIVAS:**")
-            st.markdown("- Optimizar logística")
-            st.markdown("- Seguimiento semanal")
+            st.warning("🟡 **ESTÁS CERCA DE VERDE:**")
+            st.markdown(f"- Solo necesitas reducir **{retraso:.1f} días**")
+            st.markdown(f"- **Aumentar mano de obra** {max(10, int(retraso*2))}%")
+            st.markdown("- **Considerar clima favorable**")
         else:
-            st.success("✅ **PROYECTO ÓPTIMO:**")
-            st.markdown("- Mantener planificación")
+            st.success("✅ **¡YA ESTÁS EN VERDE!**")
+            st.markdown("Mantén estos parámetros:")
+            st.markdown(f"- MO: {mano_obra_sim:,.0f} horas")
+            st.markdown(f"- Materiales: {materiales_sim:,.0f} ton")
+        
+        st.markdown("---")
+        
+        # Mostrar parámetros óptimos si se encontraron
+        if st.session_state.get('optimo_encontrado', False):
+            st.success("🎯 **¡PARÁMETROS ÓPTIMOS ENCONTRADOS!**")
+            st.markdown(f"""
+            - **Clima óptimo:** {st.session_state['mejores_params']['clima']}
+            - **Mano de obra:** {st.session_state['mejores_params']['mano_obra']:,.0f} horas ({st.session_state['mejores_params']['mult_mo']*100:.0f}% del actual)
+            - **Materiales:** {st.session_state['mejores_params']['materiales']:,.0f} ton ({st.session_state['mejores_params']['mult_mat']*100:.0f}% del actual)
+            - **Retraso estimado:** {st.session_state['mejores_params']['retraso']:.1f} días ✅
+            """)
         
         # Gráficas del simulador
         if 'escenarios' in st.session_state:
-            st.markdown("---")
             st.markdown("##### 📊 COMPARATIVA DE ESCENARIOS")
             
             escenarios_df = pd.DataFrame(st.session_state['escenarios'])
+            
+            # Colorear según valor
+            colors = []
+            for ret in escenarios_df['retraso']:
+                if ret <= 0:
+                    colors.append('#27ae60')
+                elif ret <= 30:
+                    colors.append('#f39c12')
+                else:
+                    colors.append('#e74c3c')
             
             fig5 = px.bar(
                 escenarios_df,
                 x='nombre',
                 y='retraso',
-                color='nombre',
-                color_discrete_map={e['nombre']: e['color'] for e in st.session_state['escenarios']},
                 title='Impacto de diferentes estrategias',
-                labels={'nombre': 'Escenario', 'retraso': 'Retraso (días)'}
+                labels={'nombre': 'Escenario', 'retraso': 'Retraso (días)'},
+                color=escenarios_df['retraso'],
+                color_continuous_scale=['#27ae60', '#f39c12', '#e74c3c'],
+                range_color=[-10, 50]
             )
             
-            fig5.add_hline(y=0, line_dash="dash", line_color="green")
-            fig5.update_layout(showlegend=False, height=400)
+            fig5.add_hline(y=0, line_dash="dash", line_color="green", 
+                          annotation_text="META: VERDE", annotation_position="bottom right")
+            fig5.add_hline(y=30, line_dash="dash", line_color="red", 
+                          annotation_text="LÍMITE ROJO", annotation_position="top right")
+            
+            fig5.update_layout(height=400, coloraxis_showscale=False)
             st.plotly_chart(fig5, use_container_width=True)
+            
+            # Tabla de valores
+            st.markdown("##### 📋 VALORES DE CADA ESCENARIO")
+            for _, row in escenarios_df.iterrows():
+                color = '#27ae60' if row['retraso'] <= 0 else '#f39c12' if row['retraso'] <= 30 else '#e74c3c'
+                st.markdown(f"""
+                <div style='display: flex; justify-content: space-between; padding: 5px; margin: 2px; background-color: {color}20; border-radius: 5px;'>
+                    <span>{row['nombre']}</span>
+                    <span style='font-weight: bold; color: {color};'>{row['retraso']:.1f} días</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+# ============================================
+# GUÍA RÁPIDA PARA LOGRAR VERDE
+# ============================================
+with st.expander("📘 GUÍA: Cómo lograr RETRASO VERDE (≤ 0 días)", expanded=False):
+    st.markdown("""
+    ### 🎯 **FACTORES CLAVE PARA RETRASO CERO:**
+    
+    1. **Mano de obra suficiente** (el factor más importante)
+       - Para obras grandes: > 80,000 horas
+       - Para obras medianas: 50,000 - 80,000 horas
+       - Para obras pequeñas: > 30,000 horas
+    
+    2. **Clima favorable**
+       - ✅ Soleado: Mejor escenario
+       - ✅ Nublado: Bueno
+       - ⚠️ Lluvia/Viento: Aumenta riesgo
+    
+    3. **Materiales optimizados**
+       - No demasiados (causa desorden)
+       - No muy pocos (causa paros)
+       - Relación óptima: 0.1-0.3 ton/hora
+    
+    4. **Por tipo de obra:**
+       - 🏥 **Hospital**: Mucha MO especializada
+       - 🛣️ **Carretera**: Materiales constantes
+       - 🏢 **Edificio**: Balance MO/materiales
+       - 🌉 **Puente**: Alta precisión, clima crítico
+    
+    ### 🔧 **ESTRATEGIAS COMPROBADAS:**
+    
+    | Si ves ROJO (>30) | Haz esto |
+    |-------------------|----------|
+    | Aumenta MO 20-30% | + Contrata más personal |
+    | Clima adverso | + Invierte en protecciones |
+    | Muchos materiales | + Mejora logística |
+    
+    ### 💡 **PRO TIP:**
+    Usa el botón **"OPTIMIZAR PARA VERDE"** para que la IA busque automáticamente
+    la combinación perfecta de recursos partiendo de tus valores actuales.
+    """)
 
 # ============================================
 # TABLA DE DATOS
