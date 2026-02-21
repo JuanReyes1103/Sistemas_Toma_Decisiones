@@ -685,6 +685,154 @@ else:
     st.info("No hay proyectos en el filtro actual o selecciona otros filtros")
 
 # ============================================
+# DIAGRAMA DE GANTT - CRONOGRAMA DE PROYECTOS
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>📅 CRONOGRAMA DE PROYECTOS (GANTT)</h2>
+<p style='color: #7f8c8d;'>Visualización de la duración y estado de cada proyecto</p>
+""", unsafe_allow_html=True)
+
+if not df_filtrado.empty:
+    # Preparar datos para el Gantt
+    df_gantt = df_filtrado.copy()
+    
+    # Convertir duración a fechas (usando un año base para visualización)
+    # Esto es necesario porque tenemos duración en días, no fechas reales
+    import datetime
+    
+    # Usar una fecha de inicio base (ejemplo: 1 de enero de 2024)
+    fecha_base = datetime.date(2024, 1, 1)
+    
+    # Calcular fechas de inicio y fin basadas en la duración
+    df_gantt['Start'] = df_gantt.apply(
+        lambda row: (fecha_base + datetime.timedelta(days=0)).strftime('%Y-%m-%d'), 
+        axis=1
+    )
+    df_gantt['Finish'] = df_gantt.apply(
+        lambda row: (fecha_base + datetime.timedelta(days=row['Duracion_Estimada'])).strftime('%Y-%m-%d'), 
+        axis=1
+    )
+    df_gantt['Finish_Real'] = df_gantt.apply(
+        lambda row: (fecha_base + datetime.timedelta(days=row['Duracion_Real'])).strftime('%Y-%m-%d'), 
+        axis=1
+    )
+    
+    # Crear selector para elegir qué ver
+    vista_gantt = st.radio(
+        "Ver:",
+        ["Duración Estimada", "Duración Real", "Comparación"],
+        horizontal=True
+    )
+    
+    if vista_gantt == "Duración Estimada":
+        # Gantt de duración estimada
+        fig_gantt = px.timeline(
+            df_gantt,
+            x_start="Start",
+            x_end="Finish",
+            y="Tipo de Obra",
+            color="Tipo de Obra",
+            hover_data={
+                'Proyecto ID': True,
+                'Duracion_Estimada': True,
+                'Clima': True
+            },
+            title="Duración Estimada por Tipo de Obra",
+            labels={"Tipo de Obra": "Tipo de Proyecto", "Start": "Inicio", "Finish": "Fin"}
+        )
+        
+    elif vista_gantt == "Duración Real":
+        # Gantt de duración real
+        fig_gantt = px.timeline(
+            df_gantt,
+            x_start="Start",
+            x_end="Finish_Real",
+            y="Tipo de Obra",
+            color="Nivel_Riesgo" if 'Nivel_Riesgo' in df_gantt.columns else "Tipo de Obra",
+            color_discrete_map={
+                '🟢 Controlado (0-5%)': '#27ae60',
+                '🟡 Riesgo Moderado (5-15%)': '#f39c12',
+                '🔴 Crítico (>15%)': '#e74c3c'
+            } if 'Nivel_Riesgo' in df_gantt.columns else None,
+            hover_data={
+                'Proyecto ID': True,
+                'Duracion_Real': True,
+                'Porcentaje_Retraso': ':.1f',
+                'Clima': True
+            },
+            title="Duración Real por Tipo de Obra (coloreado por riesgo)",
+            labels={"Tipo de Obra": "Tipo de Proyecto", "Start": "Inicio", "Finish_Real": "Fin Real"}
+        )
+        
+    else:  # Comparación
+        # Crear figura con dos trazas: estimada y real
+        fig_gantt = go.Figure()
+        
+        # Ordenar para que no se empalmen
+        df_gantt = df_gantt.sort_values('Duracion_Estimada', ascending=False).head(20)  # Top 20 para no saturar
+        
+        for i, row in df_gantt.iterrows():
+            # Barra estimada (más clara)
+            fig_gantt.add_trace(go.Bar(
+                name=f"Proyecto {int(row['Proyecto ID'])} - Estimado",
+                x=[row['Duracion_Estimada']],
+                y=[f"P{int(row['Proyecto ID'])}: {row['Tipo de Obra']}"],
+                orientation='h',
+                marker=dict(color='#3498db', opacity=0.5),
+                hovertemplate=f"Estimado: {row['Duracion_Estimada']} días<br>Clima: {row['Clima']}<extra></extra>"
+            ))
+            
+            # Barra real (más oscura)
+            fig_gantt.add_trace(go.Bar(
+                name=f"Proyecto {int(row['Proyecto ID'])} - Real",
+                x=[row['Duracion_Real']],
+                y=[f"P{int(row['Proyecto ID'])}: {row['Tipo de Obra']}"],
+                orientation='h',
+                marker=dict(
+                    color='#e74c3c' if row['Porcentaje_Retraso'] > 15 else '#f39c12' if row['Porcentaje_Retraso'] > 5 else '#27ae60',
+                    opacity=0.8
+                ),
+                hovertemplate=f"Real: {row['Duracion_Real']} días<br>Retraso: {row['Porcentaje_Retraso']:.1f}%<extra></extra>"
+            ))
+        
+        fig_gantt.update_layout(
+            title="Comparación: Duración Estimada vs Real (Top 20 proyectos)",
+            xaxis_title="Días",
+            yaxis_title="Proyecto",
+            barmode='overlay',
+            height=600,
+            showlegend=False
+        )
+        st.plotly_chart(fig_gantt, use_container_width=True)
+        st.caption("🔵 Barra clara: Duración estimada | 🎨 Barra oscura: Duración real (verde=controlado, amarillo=riesgo, rojo=crítico)")
+        st.markdown("---")
+        # No continuar con el otro gráfico
+        st.stop()
+    
+    # Configuración común para los primeros dos modos
+    if vista_gantt != "Comparación":
+        fig_gantt.update_yaxes(autorange="reversed")  # Para que los proyectos aparezcan de arriba a abajo
+        fig_gantt.update_layout(
+            height=500,
+            xaxis_title="Fecha",
+            yaxis_title="Tipo de Proyecto",
+            showlegend=False
+        )
+        st.plotly_chart(fig_gantt, use_container_width=True)
+        
+        # Mostrar tabla resumen
+        with st.expander("Ver detalles de los proyectos en el Gantt"):
+            st.dataframe(
+                df_gantt[['Proyecto ID', 'Tipo de Obra', 'Duracion_Estimada', 'Duracion_Real', 
+                         'Porcentaje_Retraso', 'Nivel_Riesgo']].head(15),
+                use_container_width=True
+            )
+else:
+    st.info("Selecciona filtros para ver el cronograma")
+
+st.markdown("---")
+
+# ============================================
 # MODELO MATEMÁTICO - OPTIMIZADOR (VERSIÓN SIMPLE QUE SÍ FUNCIONA)
 # ============================================
 st.markdown("""
