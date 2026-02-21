@@ -439,7 +439,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - VALORES DINÁMICOS)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -465,43 +465,18 @@ with col_m2:
         res = st.session_state['resultado_optimizacion']
         tipo_mostrado = st.session_state['tipo_optimizado']
         
-        # Formatear números con comas
-        mo_formateada = f"{res['mano_obra_optima']:,.0f}"
-        mat_formateada = f"{res['materiales_optimos']:,.0f}"
-        costo_formateado = f"{res['costo_minimo']:,.0f}"
-        prod_formateada = f"{res['productividad']:.3f}"
+        # Usar st.metric para mostrar los valores (más sencillo y sin errores)
+        st.markdown(f"### ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}")
         
-        st.markdown(f"""
-        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
-            <h4 style='color: #2c3e50; text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #3498db;'>
-                ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}
-            </h4>
-            
-            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
-                <span style='font-size: 24px; margin-right: 10px;'>👷</span> 
-                <strong style='min-width: 140px;'>Mano de obra:</strong> 
-                <span style='font-weight: bold; color: #2c3e50;'>{mo_formateada} horas</span>
-            </p>
-            
-            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
-                <span style='font-size: 24px; margin-right: 10px;'>🏗️</span> 
-                <strong style='min-width: 140px;'>Materiales:</strong> 
-                <span style='font-weight: bold; color: #2c3e50;'>{mat_formateada} ton</span>
-            </p>
-            
-            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
-                <span style='font-size: 24px; margin-right: 10px;'>💰</span> 
-                <strong style='min-width: 140px;'>Costo mínimo:</strong> 
-                <span style='font-weight: bold; color: #2c3e50;'>${costo_formateado}</span>
-            </p>
-            
-            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
-                <span style='font-size: 24px; margin-right: 10px;'>📊</span> 
-                <strong style='min-width: 140px;'>Productividad:</strong> 
-                <span style='font-weight: bold; color: #2c3e50;'>{prod_formateada} ton/hora</span>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        
+        with col_a:
+            st.metric("👷 Mano de obra", f"{res['mano_obra_optima']:,.0f} horas")
+            st.metric("🏗️ Materiales", f"{res['materiales_optimos']:,.0f} ton")
+        
+        with col_b:
+            st.metric("💰 Costo mínimo", f"${res['costo_minimo']:,.0f}")
+            st.metric("📊 Productividad", f"{res['productividad']:.3f} ton/hora")
 
 # ============================================
 # SIMULADOR DE IA
