@@ -20,11 +20,10 @@ st.title("🏗️ Sistema de Soporte a la Decisión - Construcción")
 st.markdown("---")
 
 # ============================================
-# DATOS EN FORMATO CSV (100% GARANTIZADO)
+# DATOS EN FORMATO CSV
 # ============================================
 @st.cache_data
 def cargar_datos():
-    # Datos en formato CSV string
     csv_data = """Proyecto ID,Tipo de Obra,Presupuesto,Costo_Real,Duracion_Estimada,Duracion_Real,Clima,Materiales,Mano_Obra
 1,Carretera,21690591,27675455.95,589,579,Nublado,3965,76335
 2,Aeropuerto,6597866,8542304.05,698,682,Tormenta,2560,59766
@@ -127,23 +126,13 @@ def cargar_datos():
 99,Centro Comercial,10051784,12087790.21,697,731,Tormenta,15065,46557
 100,Escuela,33501266,36144383.06,636,723,Soleado,10124,13424"""
     
-    # Leer el CSV
     df = pd.read_csv(io.StringIO(csv_data))
-    
-    # Calcular métricas derivadas
     df['Retraso'] = df['Duracion_Real'] - df['Duracion_Estimada']
     df['Desviacion_Costo'] = ((df['Costo_Real'] - df['Presupuesto']) / df['Presupuesto']) * 100
-    
     return df
 
 # Cargar datos
 df = cargar_datos()
-
-# ============================================
-# VERIFICACIÓN
-# ============================================
-st.success(f"✅ Datos cargados correctamente: {len(df)} proyectos")
-st.info(f"Columnas: {list(df.columns)}")
 
 # ============================================
 # MODELO DE IA
@@ -205,7 +194,6 @@ with col1:
         fig1 = px.bar(retraso_tipo, x='Tipo de Obra', y='Retraso', 
                      title='Retraso Promedio por Tipo de Obra',
                      color='Retraso', color_continuous_scale='RdYlGn_r')
-        fig1.update_layout(autosize=True)
         st.plotly_chart(fig1, use_container_width=True)
 
 with col2:
@@ -216,21 +204,23 @@ with col2:
         st.plotly_chart(fig2, use_container_width=True)
 
 # ============================================
-# GRÁFICOS ADICIONALES
+# GRÁFICOS DE DISPERSIÓN (SIN TRENDLINE)
 # ============================================
 st.subheader("📈 Análisis de Correlación")
 col3, col4 = st.columns(2)
 
 with col3:
     fig3 = px.scatter(df_filtrado, x='Materiales', y='Retraso', 
-                      color='Tipo de Obra', title='Materiales vs Retraso',
-                      trendline='ols')
+                      color='Tipo de Obra', 
+                      title='Materiales vs Retraso',
+                      opacity=0.7)
     st.plotly_chart(fig3, use_container_width=True)
 
 with col4:
     fig4 = px.scatter(df_filtrado, x='Mano_Obra', y='Retraso', 
-                      color='Clima', title='Mano de Obra vs Retraso',
-                      trendline='ols')
+                      color='Clima',
+                      title='Mano de Obra vs Retraso',
+                      opacity=0.7)
     st.plotly_chart(fig4, use_container_width=True)
 
 # ============================================
@@ -293,4 +283,4 @@ if not df_filtrado.empty:
     st.download_button("📥 Descargar CSV", csv, "datos_construccion.csv", "text/csv")
 
 st.markdown("---")
-st.caption("✅ Dashboard funcionando - Versión con datos CSV integrados")
+st.caption("✅ Dashboard funcionando - Versión sin dependencias extras")
