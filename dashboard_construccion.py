@@ -570,7 +570,7 @@ else:
     st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO)
+# MODELO MATEMÁTICO - OPTIMIZADOR (VERSIÓN SIMPLE QUE SÍ FUNCIONA)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -628,61 +628,25 @@ with col_m2:
         tipo_mostrado = st.session_state['tipo_optimizado']
         duracion_mostrada = st.session_state['duracion_optimizada']
         
-        # Formatear números para mejor visualización
-        mo_formateada = f"{res['mano_obra_optima']:,.0f}"
-        mat_formateada = f"{res['materiales_optimos']:,.0f}"
-        costo_formateado = f"{res['costo_minimo']:,.0f}"
+        # Mostrar usando st.metric (100% garantizado que funciona)
+        st.markdown(f"### ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}")
+        st.caption(f"📊 Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos")
         
-        # Mostrar los resultados con fondo blanco y texto negro legible - CON f-STRING CORRECTO
-        st.markdown(f"""
-        <div style='background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
-            <h4 style='color: #2c3e50; text-align: center; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #3498db; padding-bottom: 10px;'>
-                ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}
-            </h4>
-            
-            <p style='margin: 5px 0 15px 0; text-align: center; color: #2c3e50; font-size: 14px;'>
-                📊 Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos
-            </p>
-            
-            <table style='width: 100%; border-collapse: collapse; margin-bottom: 15px;'>
-                <tr>
-                    <td style='padding: 8px;'><span style='font-size: 20px;'>👷</span></td>
-                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Mano de obra:</strong></td>
-                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{mo_formateada} horas</span></td>
-                </tr>
-                <tr>
-                    <td style='padding: 8px;'><span style='font-size: 20px;'>🏗️</span></td>
-                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Materiales:</strong></td>
-                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{mat_formateada} ton</span></td>
-                </tr>
-                <tr>
-                    <td style='padding: 8px;'><span style='font-size: 20px;'>💰</span></td>
-                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Costo estimado:</strong></td>
-                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>${costo_formateado}</span></td>
-                </tr>
-                <tr>
-                    <td style='padding: 8px;'><span style='font-size: 20px;'>📊</span></td>
-                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Productividad:</strong></td>
-                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{res['productividad']:.3f} t/h</span></td>
-                </tr>
-            </table>
-            
-            <p style='margin: 5px 0 0 0; color: #7f8c8d; font-size: 13px; text-align: center; border-top: 1px solid #eee; padding-top: 10px;'>
-                📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
+        
+        with col_a:
+            st.metric("👷 Mano de obra", f"{res['mano_obra_optima']:,.0f} horas")
+            st.metric("🏗️ Materiales", f"{res['materiales_optimos']:,.0f} ton")
+        
+        with col_b:
+            st.metric("💰 Costo estimado", f"${res['costo_minimo']:,.0f}")
+            st.metric("📊 Productividad", f"{res['productividad']:.3f} t/h")
+        
+        st.caption(f"📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días")
     
     else:
         # Mensaje cuando no hay datos calculados aún
-        st.markdown("""
-        <div style='background-color: white; padding: 40px 20px; border-radius: 10px; text-align: center; border: 1px dashed #bdc3c7;'>
-            <h4 style='color: #7f8c8d; margin: 0;'>📐 OPTIMIZADOR LISTO</h4>
-            <p style='color: #95a5a6; margin: 10px 0 0 0;'>
-                👈 Configura los parámetros y haz clic en "CALCULAR"
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("👈 Configura los parámetros y haz clic en 'CALCULAR' para ver resultados")
 
 st.markdown("---")
 
