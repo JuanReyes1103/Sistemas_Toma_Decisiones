@@ -430,7 +430,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CON EXPLICACIÓN)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE KEY)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -472,30 +472,45 @@ with col_m1:
             resultado_opt = modelo_optimizacion(tipo_opt, duracion_opt)
             
             if resultado_opt:
+                # Guardar TODOS los datos necesarios en session_state
                 st.session_state['resultado_optimizacion'] = resultado_opt
                 st.session_state['tipo_optimizado'] = tipo_opt
                 st.session_state['duracion_optimizada'] = duracion_opt
-                st.success("✅ Cálculo completado basado en datos históricos!")
+                st.success(f"✅ Cálculo completado basado en {len(df[df['Tipo de Obra']==tipo_opt])} proyectos históricos!")
 
 with col_m2:
-    if 'resultado_optimizacion' in st.session_state:
+    # Verificar que TODAS las claves necesarias existen
+    if ('resultado_optimizacion' in st.session_state and 
+        'tipo_optimizado' in st.session_state and 
+        'duracion_optimizada' in st.session_state):
+        
         res = st.session_state['resultado_optimizacion']
         tipo_mostrado = st.session_state['tipo_optimizado']
         duracion_mostrada = st.session_state['duracion_optimizada']
         
+        # Mostrar los resultados con formato mejorado
         st.markdown(f"""
         <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #3498db;'>
             <h4 style='color: #2c3e50; margin-top: 0;'>✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}</h4>
             <p style='margin: 5px 0;'><small>Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos</small></p>
+            <hr style='margin: 10px 0; border: 0; border-top: 1px solid #ddd;'>
             <p style='margin: 10px 0; font-size: 16px;'><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
             <p style='margin: 10px 0; font-size: 16px;'><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
             <p style='margin: 10px 0; font-size: 16px;'><strong>💰 Costo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
             <p style='margin: 10px 0; font-size: 16px;'><strong>📊 Productividad histórica:</strong> {res['productividad']:.3f} ton/hora</p>
-            <p style='margin: 10px 0; font-size: 14px; color: #7f8c8d;'><i>Referencia: proyectos de {res['duracion_referencia']:.0f} días promedio</i></p>
+            <hr style='margin: 10px 0; border: 0; border-top: 1px solid #ddd;'>
+            <p style='margin: 10px 0; font-size: 14px; color: #7f8c8d;'><i>📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días promedio</i></p>
         </div>
         """, unsafe_allow_html=True)
-
-st.markdown("---")
+    
+    else:
+        # Mensaje cuando no hay datos calculados aún
+        st.markdown("""
+        <div style='background-color: #f8f9fa; padding: 40px 20px; border-radius: 10px; text-align: center; border: 1px dashed #ddd;'>
+            <h4 style='color: #7f8c8d; margin: 0;'>👈 Configura los parámetros y haz clic en "CALCULAR"</h4>
+            <p style='color: #95a5a6; margin: 10px 0 0 0;'>Los resultados aparecerán aquí</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ============================================
 # SIMULADOR DE IA (BASADO EN % DE RETRASO)
