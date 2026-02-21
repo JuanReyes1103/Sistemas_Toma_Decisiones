@@ -463,11 +463,11 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# GRÁFICA ADICIONAL: Distribución de Niveles de Riesgo
+# GRÁFICAS ADICIONALES DE RIESGO (CORREGIDO)
 # ============================================
-st.markdown("##### 🌍 Distribución Global de Niveles de Riesgo")
+st.markdown("##### 🌍 Análisis de Niveles de Riesgo")
 
-if not df_filtrado.empty:
+if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
     col_g3, col_g4 = st.columns(2)
     
     with col_g3:
@@ -475,86 +475,94 @@ if not df_filtrado.empty:
         riesgo_global = df_filtrado['Nivel_Riesgo'].value_counts().reset_index()
         riesgo_global.columns = ['Nivel de Riesgo', 'Cantidad']
         
-        # Mapa de colores pastel para los niveles de riesgo
-        color_map_riesgo = {
-            '🟢 Controlado (0-5%)': '#A8E6CF',  # Verde pastel
-            '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',  # Naranja pastel
-            '🔴 Crítico (>15%)': '#FFAAA5'  # Rojo pastel
-        }
-        
-        fig3 = px.pie(
-            riesgo_global,
-            values='Cantidad',
-            names='Nivel de Riesgo',
-            color='Nivel de Riesgo',
-            color_discrete_map=color_map_riesgo,
-            title='Distribución por nivel de riesgo',
-            hole=0.3
-        )
-        
-        fig3.update_traces(
-            textposition='inside', 
-            textinfo='percent+label',
-            textfont_size=12,
-            marker=dict(line=dict(color='white', width=2))
-        )
-        
-        fig3.update_layout(
-            height=400,
-            showlegend=False,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        st.plotly_chart(fig3, use_container_width=True)
+        # Verificar que hay datos
+        if not riesgo_global.empty:
+            color_map_riesgo = {
+                '🟢 Controlado (0-5%)': '#A8E6CF',
+                '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',
+                '🔴 Crítico (>15%)': '#FFAAA5'
+            }
+            
+            fig3 = px.pie(
+                riesgo_global,
+                values='Cantidad',
+                names='Nivel de Riesgo',
+                color='Nivel de Riesgo',
+                color_discrete_map=color_map_riesgo,
+                title='Distribución por nivel de riesgo',
+                hole=0.3
+            )
+            
+            fig3.update_traces(
+                textposition='inside', 
+                textinfo='percent+label',
+                textfont_size=12,
+                marker=dict(line=dict(color='white', width=2))
+            )
+            
+            fig3.update_layout(height=400)
+            st.plotly_chart(fig3, use_container_width=True)
+        else:
+            st.info("No hay datos suficientes para mostrar la distribución de riesgos")
     
     with col_g4:
-        # Gráfico de barras apiladas para relación Tipo de Obra vs Nivel de Riesgo
-        riesgo_tipo = pd.crosstab(
-            df_filtrado['Tipo de Obra'], 
-            df_filtrado['Nivel_Riesgo']
-        ).reset_index()
-        
-        riesgo_tipo_long = pd.melt(
-            riesgo_tipo, 
-            id_vars=['Tipo de Obra'], 
-            value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
-            var_name='Nivel de Riesgo', 
-            value_name='Cantidad'
-        )
-        
-        color_map_riesgo_barras = {
-            '🟢 Controlado (0-5%)': '#A8E6CF',
-            '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',
-            '🔴 Crítico (>15%)': '#FFAAA5'
-        }
-        
-        fig4 = px.bar(
-            riesgo_tipo_long,
-            x='Tipo de Obra',
-            y='Cantidad',
-            color='Nivel de Riesgo',
-            color_discrete_map=color_map_riesgo_barras,
-            title='Distribución de riesgos por tipo de obra',
-            barmode='stack',
-            text_auto=True
-        )
-        
-        fig4.update_layout(
-            height=400,
-            xaxis_title="",
-            yaxis_title="Cantidad de proyectos",
-            legend_title="",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)'
-        )
-        
-        fig4.update_traces(
-            textfont_size=11,
-            textposition='inside'
-        )
-        
-        st.plotly_chart(fig4, use_container_width=True)
+        # Barras apiladas: Tipo de Obra vs Nivel de Riesgo
+        if 'Tipo de Obra' in df_filtrado.columns and 'Nivel_Riesgo' in df_filtrado.columns:
+            riesgo_tipo = pd.crosstab(
+                df_filtrado['Tipo de Obra'], 
+                df_filtrado['Nivel_Riesgo']
+            ).reset_index()
+            
+            if not riesgo_tipo.empty:
+                riesgo_tipo_long = pd.melt(
+                    riesgo_tipo, 
+                    id_vars=['Tipo de Obra'], 
+                    value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
+                    var_name='Nivel de Riesgo', 
+                    value_name='Cantidad'
+                )
+                
+                # Filtrar solo filas con cantidad > 0
+                riesgo_tipo_long = riesgo_tipo_long[riesgo_tipo_long['Cantidad'] > 0]
+                
+                if not riesgo_tipo_long.empty:
+                    color_map_riesgo = {
+                        '🟢 Controlado (0-5%)': '#A8E6CF',
+                        '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',
+                        '🔴 Crítico (>15%)': '#FFAAA5'
+                    }
+                    
+                    fig4 = px.bar(
+                        riesgo_tipo_long,
+                        x='Tipo de Obra',
+                        y='Cantidad',
+                        color='Nivel de Riesgo',
+                        color_discrete_map=color_map_riesgo,
+                        title='Riesgos por tipo de obra',
+                        barmode='stack',
+                        text_auto=True
+                    )
+                    
+                    fig4.update_layout(
+                        height=400,
+                        xaxis_title="",
+                        yaxis_title="Cantidad de proyectos"
+                    )
+                    
+                    st.plotly_chart(fig4, use_container_width=True)
+                else:
+                    st.info("No hay datos suficientes para mostrar riesgos por tipo de obra")
+            else:
+                st.info("No hay datos suficientes para el análisis cruzado")
+        else:
+            st.info("Columnas necesarias no disponibles")
+else:
+    # Mostrar mensaje si no hay datos o falta la columna
+    st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
+    
+    # Opcional: mostrar las columnas disponibles para depuración
+    with st.expander("Ver columnas disponibles"):
+        st.write(df_filtrado.columns.tolist() if not df_filtrado.empty else "DataFrame vacío")
 # ============================================
 # MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE KEY)
 # ============================================
