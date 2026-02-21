@@ -833,6 +833,155 @@ with st.expander("📘 GUÍA ESPECIAL: Cómo lograr VERDE (Retraso ≤ 0)", expa
     - **Materiales = 12,000 ton**
     - **Tipo = Aeropuerto o Carretera**
     """)
+# ============================================
+# ANALIZADOR DE TU PROPIO DATASET
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>🔍 ANALIZADOR DE TU DATASET REAL</h2>
+<p style='color: #7f8c8d;'>Mostrando patrones de ÉXITO de TUS 100 proyectos</p>
+""", unsafe_allow_html=True)
+
+# Mostrar estadísticas reales
+col_r1, col_r2, col_r3, col_r4 = st.columns(4)
+
+with col_r1:
+    verdes = len(df[df['Retraso'] <= 0])
+    st.markdown(f"""
+    <div style='background-color: #27ae60; padding: 15px; border-radius: 10px; text-align: center;'>
+        <h2 style='color: white; margin: 0;'>{verdes}</h2>
+        <p style='color: white; margin: 0;'>Proyectos VERDES</p>
+        <small style='color: white;'>({verdes/100:.0%} del total)</small>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_r2:
+    amarillos = len(df[(df['Retraso'] > 0) & (df['Retraso'] <= 30)])
+    st.markdown(f"""
+    <div style='background-color: #f39c12; padding: 15px; border-radius: 10px; text-align: center;'>
+        <h2 style='color: white; margin: 0;'>{amarillos}</h2>
+        <p style='color: white; margin: 0;'>Proyectos AMARILLOS</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_r3:
+    rojos = len(df[df['Retraso'] > 30])
+    st.markdown(f"""
+    <div style='background-color: #e74c3c; padding: 15px; border-radius: 10px; text-align: center;'>
+        <h2 style='color: white; margin: 0;'>{rojos}</h2>
+        <p style='color: white; margin: 0;'>Proyectos ROJOS</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_r4:
+    st.markdown(f"""
+    <div style='background-color: #3498db; padding: 15px; border-radius: 10px; text-align: center;'>
+        <h2 style='color: white; margin: 0;'>{df['Mano_Obra'].mean():,.0f}</h2>
+        <p style='color: white; margin: 0;'>MO Promedio</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================
+# MOSTRAR PATRONES DE ÉXITO DE TUS DATOS
+# ============================================
+st.markdown("---")
+st.markdown("### 🏆 PROYECTOS VERDES EN TUS DATOS (APRENDE DE ELLOS)")
+
+# Agrupar por tipo de obra
+tipos_verdes = df[df['Retraso'] <= 0].groupby('Tipo de Obra').agg({
+    'Proyecto ID': 'count',
+    'Mano_Obra': 'mean',
+    'Materiales': 'mean',
+    'Retraso': 'mean'
+}).round(0).reset_index()
+tipos_verdes.columns = ['Tipo', 'Cantidad', 'MO Promedio', 'Mat Promedio', 'Retraso Prom']
+
+st.dataframe(tipos_verdes, use_container_width=True)
+
+# Mostrar los mejores ejemplos
+st.markdown("### ⭐ TOP 10 PROYECTOS MÁS EXITOSOS (MÁS VERDES)")
+
+top_verdes = df[df['Retraso'] <= 0].sort_values('Retraso').head(10)[
+    ['Proyecto ID', 'Tipo de Obra', 'Clima', 'Mano_Obra', 'Materiales', 'Retraso']
+]
+
+for _, row in top_verdes.iterrows():
+    st.markdown(f"""
+    <div style='border-left: 5px solid #27ae60; padding: 10px; margin: 5px 0; background-color: #f0f9f0;'>
+        <b>Proyecto {int(row['Proyecto ID'])}</b> - {row['Tipo de Obra']} en {row['Clima']}<br>
+        👷 MO: {row['Mano_Obra']:,.0f} horas | 🏗️ Mat: {row['Materiales']:,.0f} ton<br>
+        🎯 Retraso: {row['Retraso']:.0f} días
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================
+# SIMULADOR QUE USA SOLO TUS DATOS
+# ============================================
+st.markdown("---")
+st.markdown("### 🎯 SIMULADOR BASADO EN TUS PROYECTOS EXITOSOS")
+
+# Crear un selector de proyectos exitosos como referencia
+proyecto_ref = st.selectbox(
+    "Selecciona un proyecto exitoso como referencia:",
+    options=top_verdes['Proyecto ID'].tolist(),
+    format_func=lambda x: f"Proyecto {int(x)} - {df[df['Proyecto ID']==x]['Tipo de Obra'].iloc[0]} (Retraso: {df[df['Proyecto ID']==x]['Retraso'].iloc[0]:.0f} días)"
+)
+
+if proyecto_ref:
+    ref_data = df[df['Proyecto ID'] == proyecto_ref].iloc[0]
+    
+    st.info(f"""
+    **Proyecto de referencia:**
+    - Tipo: {ref_data['Tipo de Obra']}
+    - Clima: {ref_data['Clima']}
+    - Mano de obra: {ref_data['Mano_Obra']:,.0f} horas
+    - Materiales: {ref_data['Materiales']:,.0f} ton
+    - Retraso: {ref_data['Retraso']:.0f} días ✅
+    """)
+    
+    # Permitir ajustar desde ese punto de partida
+    st.markdown("**Ajusta los recursos respecto al proyecto exitoso:**")
+    
+    col_a1, col_a2 = st.columns(2)
+    with col_a1:
+        factor_mo = st.slider("Factor Mano de Obra", 0.5, 2.0, 1.0, 0.1)
+    with col_a2:
+        factor_mat = st.slider("Factor Materiales", 0.5, 2.0, 1.0, 0.1)
+    
+    mo_nueva = ref_data['Mano_Obra'] * factor_mo
+    mat_nueva = ref_data['Materiales'] * factor_mat
+    
+    # Predecir con el modelo
+    try:
+        tipo_cod = le_tipo_verde.transform([ref_data['Tipo de Obra']])[0]
+        clima_cod = le_clima_verde.transform(['Soleado'])[0]  # Asumimos clima óptimo
+        
+        X_test = np.array([[ref_data['Presupuesto'], ref_data['Duracion_Estimada'], 
+                           mat_nueva, mo_nueva, tipo_cod, clima_cod]])
+        X_test_scaled = scaler_verde.transform(X_test)
+        retraso_nuevo = modelo_verde.predict(X_test_scaled)[0]
+        
+        # Mostrar resultado
+        color = '#27ae60' if retraso_nuevo <= 0 else '#f39c12' if retraso_nuevo <= 30 else '#e74c3c'
+        st.markdown(f"""
+        <div style='background-color: {color}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h2 style='color: white; margin: 0;'>RETRASO ESTIMADO</h2>
+            <h1 style='color: white; margin: 0; font-size: 48px;'>{retraso_nuevo:.1f} días</h1>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Comparación
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            st.metric("MO vs Referencia", 
+                     f"{mo_nueva:,.0f} h", 
+                     f"{((mo_nueva/ref_data['Mano_Obra'])-1)*100:.0f}%")
+        with col_c2:
+            st.metric("Mat vs Referencia", 
+                     f"{mat_nueva:,.0f} t", 
+                     f"{((mat_nueva/ref_data['Materiales'])-1)*100:.0f}%")
+            
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 # ============================================
 # TABLA DE DATOS
