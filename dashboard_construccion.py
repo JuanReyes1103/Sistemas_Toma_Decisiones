@@ -435,6 +435,356 @@ with col_color3:
 
 st.markdown("---")
 
+# ============================================
+# MODELO ESPECIAL PARA PROYECTOS VERDES
+# ============================================
+@st.cache_resource
+def entrenar_modelo_verde():
+    """Modelo especial que pondera más los proyectos exitosos"""
+    le_tipo_v = LabelEncoder()
+    le_clima_v = LabelEncoder()
+    
+    df_modelo = df.copy()
+    df_modelo['Tipo_Cod'] = le_tipo_v.fit_transform(df_modelo['Tipo de Obra'])
+    df_modelo['Clima_Cod'] = le_clima_v.fit_transform(df_modelo['Clima'])
+    
+    features = ['Presupuesto', 'Duracion_Estimada', 'Materiales', 'Mano_Obra', 'Tipo_Cod', 'Clima_Cod']
+    X = df_modelo[features]
+    y = df_modelo['Retraso']
+    
+    # Crear pesos: dar más importancia a proyectos exitosos (retraso <= 0)
+    sample_weights = np.where(y <= 0, 3.0, 1.0)  # 3x más peso a proyectos verdes
+    
+    scaler_v = StandardScaler()
+    X_scaled = scaler_v.fit_transform(X)
+    
+    modelo_v = RandomForestRegressor(
+        n_estimators=100,  # Más árboles
+        max_depth=8,       # Profundidad media
+        min_samples_split=5,
+        random_state=42
+    )
+    modelo_v.fit(X_scaled, y, sample_weight=sample_weights)
+    
+    return modelo_v, scaler_v, le_tipo_v, le_clima_v, features
+
+# Cargar modelo especial
+modelo_verde, scaler_verde, le_tipo_verde, le_clima_verde, _ = entrenar_modelo_verde()
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.markdown("""
+    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px;'>
+        <h4 style='color: #2c3e50;'>📋 PARÁMETROS DEL PROYECTO</h4>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    tipo_sim = st.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique(), key='tipo_sim_verde')
+    clima_sim = st.selectbox("☁️ Clima", df['Clima'].unique(), key='clima_sim_verde')
+    
+    st.markdown("##### 💰 Recursos")
+    
+    presupuesto_sim = st.slider("Presupuesto ($)", 
+                                min_value=1_000_000, 
+                                max_value=50_000_000, 
+                                value=25_000_000,
+                                step=1_000_000,
+                                format="$%d",
+                                key='pres_sim_verde')
+    
+    duracion_sim = st.slider("Duración estimada (días)", 
+                             min_value=50, 
+                             max_value=800, 
+                             value=300,
+                             step=10,
+                             key='dur_sim_verde')
+    
+    materiales_sim = st.slider("Materiales (ton)", 
+                               min_value=1000, 
+                               max_value=20000, 
+                               value=10000,
+                               step=500,
+                               key='mat_sim_verde')
+    
+    mano_obra_sim = st.slider("Mano de obra (horas)", 
+                              min_value=5000, 
+                              max_value=150000,  # Aumentado el máximo
+                              value=50000,
+                              step=5000,
+                              key='mo_sim_verde')
+    
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("🎯 SIMULAR", use_container_width=True, key='btn_sim'):
+            try:
+                tipo_cod = le_tipo_verde.transform([tipo_sim])[0]
+                clima_cod = le_clima_verde.transform([clima_sim])[0]
+                
+                X_sim = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                                  mano_obra_sim, tipo_cod, clima_cod]])
+                X_sim_scaled = scaler_verde.transform(X_sim)
+                
+                retraso_pred = modelo_verde.predict(X_sim_scaled)[0]
+                
+                st.session_state['retraso_sim_verde'] = retraso_pred
+                st.session_state['parametros_sim_verde'] = {
+                    'tipo': tipo_sim,
+                    'clima': clima_sim,
+                    'presupuesto': presupuesto_sim,
+                    'duracion': duracion_sim,
+                    'materiales': materiales_sim,
+                    'mano_obra': mano_obra_sim
+                }
+                
+                # Generar escenarios EXTREMOS para buscar verde
+                escenarios = []
+                escenarios.append({'nombre': 'Actual', 'retraso': retraso_pred})
+                
+                # Escenarios agresivos para buscar verde
+                for mo_mult in [1.3, 1.5, 1.8, 2.0, 2.5]:
+                    for clima_test in ['Soleado', 'Nublado']:
+                        clima_test_cod = le_clima_verde.transform([clima_test])[0]
+                        X_test = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                                           mano_obra_sim * mo_mult, tipo_cod, clima_test_cod]])
+                        X_test_scaled = scaler_verde.transform(X_test)
+                        ret_test = modelo_verde.predict(X_test_scaled)[0]
+                        
+                        nombre = f'+{int((mo_mult-1)*100)}% MO, {clima_test}'
+                        escenarios.append({'nombre': nombre, 'retraso': ret_test})
+                
+                st.session_state['escenarios_verde'] = escenarios
+                
+            except Exception as e:
+                st.error(f"Error: {e}")
+    
+    with col_btn2:
+        if st.button("🎯 BUSCAR VERDE (IA)", use_container_width=True, key='btn_opt'):
+            with st.spinner('🔍 IA buscando combinación perfecta...'):
+                try:
+                    tipo_cod = le_tipo_verde.transform([tipo_sim])[0]
+                    
+                    mejores_params = None
+                    mejor_retraso = 1000  # Iniciar con valor alto
+                    
+                    # Búsqueda exhaustiva
+                    climas_test = ['Soleado', 'Nublado']
+                    mo_multipliers = [1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 3.0]
+                    mat_multipliers = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
+                    
+                    resultados = []
+                    
+                    for clima_test in climas_test:
+                        clima_test_cod = le_clima_verde.transform([clima_test])[0]
+                        
+                        for mo_mult in mo_multipliers:
+                            for mat_mult in mat_multipliers:
+                                # Calcular valores
+                                mo_test = mano_obra_sim * mo_mult
+                                mat_test = materiales_sim * mat_mult
+                                
+                                # Limitar a rangos razonables
+                                if mo_test > 200000 or mat_test > 30000:
+                                    continue
+                                
+                                X_test = np.array([[
+                                    presupuesto_sim,
+                                    duracion_sim,
+                                    mat_test,
+                                    mo_test,
+                                    tipo_cod,
+                                    clima_test_cod
+                                ]])
+                                
+                                X_test_scaled = scaler_verde.transform(X_test)
+                                retraso_test = modelo_verde.predict(X_test_scaled)[0]
+                                
+                                resultados.append({
+                                    'clima': clima_test,
+                                    'mano_obra': mo_test,
+                                    'materiales': mat_test,
+                                    'mult_mo': mo_mult,
+                                    'mult_mat': mat_mult,
+                                    'retraso': retraso_test
+                                })
+                                
+                                # Guardar el mejor (más bajo) y que sea <= 0 si es posible
+                                if retraso_test < mejor_retraso:
+                                    mejor_retraso = retraso_test
+                                    mejores_params = {
+                                        'clima': clima_test,
+                                        'mano_obra': mo_test,
+                                        'materiales': mat_test,
+                                        'mult_mo': mo_mult,
+                                        'mult_mat': mat_mult,
+                                        'retraso': retraso_test
+                                    }
+                    
+                    # Guardar resultados
+                    st.session_state['resultados_busqueda'] = resultados
+                    
+                    if mejores_params:
+                        st.session_state['optimo_encontrado_verde'] = True
+                        st.session_state['mejores_params_verde'] = mejores_params
+                        
+                        # Mensaje según resultado
+                        if mejores_params['retraso'] <= 0:
+                            st.balloons()
+                            st.success("🎉 ¡ENCONTRAMOS UNA COMBINACIÓN VERDE!")
+                        else:
+                            st.info(f"📊 Mejor retraso encontrado: {mejores_params['retraso']:.1f} días")
+                    
+                except Exception as e:
+                    st.error(f"Error en optimización: {e}")
+
+with col2:
+    if 'retraso_sim_verde' in st.session_state:
+        retraso = st.session_state['retraso_sim_verde']
+        
+        # Determinar color y mensaje
+        if retraso <= 0:
+            bg_color = "#27ae60"
+            emoji = "✅"
+            mensaje = "¡PROYECTO A TIEMPO!"
+            st.balloons()
+        elif retraso <= 30:
+            bg_color = "#f39c12"
+            emoji = "⚠️"
+            mensaje = "RIESGO MODERADO"
+        else:
+            bg_color = "#e74c3c"
+            emoji = "🔴"
+            mensaje = "ALTO RIESGO"
+        
+        st.markdown(f"""
+        <div style='background-color: {bg_color}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h2 style='color: white; margin: 0;'>{emoji} RESULTADO</h2>
+            <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
+            <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
+            <p style='color: white; margin: 10px 0 0 0; font-size: 18px;'>{mensaje}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Análisis de brecha para llegar a verde
+        st.markdown("##### 📊 ANÁLISIS DE BRECHA PARA VERDE")
+        
+        if retraso > 0:
+            col_g1, col_g2, col_g3 = st.columns(3)
+            with col_g1:
+                st.markdown(f"""
+                <div style='text-align: center; background-color: #27ae60; padding: 10px; border-radius: 5px;'>
+                    <p style='color: white; margin: 0; font-size: 24px;'>0</p>
+                    <p style='color: white; margin: 0;'>META</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_g2:
+                st.markdown(f"""
+                <div style='text-align: center; background-color: {bg_color}; padding: 10px; border-radius: 5px;'>
+                    <p style='color: white; margin: 0; font-size: 24px;'>{retraso:.1f}</p>
+                    <p style='color: white; margin: 0;'>ACTUAL</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_g3:
+                brecha = retraso
+                st.markdown(f"""
+                <div style='text-align: center; background-color: #3498db; padding: 10px; border-radius: 5px;'>
+                    <p style='color: white; margin: 0; font-size: 24px;'>{brecha:.1f}</p>
+                    <p style='color: white; margin: 0;'>BRECHA</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Cálculo de recursos necesarios
+            st.markdown("##### 🔧 RECURSOS NECESARIOS PARA VERDE")
+            
+            # Calcular incrementos necesarios
+            mo_actual = st.session_state['parametros_sim_verde']['mano_obra']
+            
+            # Probar diferentes incrementos
+            incrementos = [1.2, 1.5, 1.8, 2.0, 2.5]
+            mejor_opcion = None
+            menor_retraso = retraso
+            
+            tipo_cod = le_tipo_verde.transform([tipo_sim])[0]
+            
+            for inc in incrementos:
+                mo_test = mo_actual * inc
+                if mo_test <= 200000:  # Límite razonable
+                    clima_test_cod = le_clima_verde.transform(['Soleado'])[0]
+                    X_test = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                                       mo_test, tipo_cod, clima_test_cod]])
+                    X_test_scaled = scaler_verde.transform(X_test)
+                    ret_test = modelo_verde.predict(X_test_scaled)[0]
+                    
+                    if ret_test < menor_retraso:
+                        menor_retraso = ret_test
+                        mejor_opcion = (inc, ret_test)
+            
+            if mejor_opcion:
+                inc, ret_nuevo = mejor_opcion
+                st.info(f"""
+                **Recomendación:** Aumenta mano de obra **{int((inc-1)*100)}%**  
+                → De {mo_actual:,.0f} a {mo_actual*inc:,.0f} horas  
+                → Retraso estimado: {ret_nuevo:.1f} días
+                
+                {"✅ ¡Alcanzarías VERDE!" if ret_nuevo <= 0 else f"🟡 Todavía en amarillo (faltan {ret_nuevo:.1f} días)"}
+                """)
+        
+        st.markdown("---")
+        
+        # Mostrar resultados de optimización
+        if st.session_state.get('optimo_encontrado_verde', False):
+            mejor = st.session_state['mejores_params_verde']
+            
+            if mejor['retraso'] <= 0:
+                st.success("🎯 **¡COMBINACIÓN VERDE ENCONTRADA!**")
+            else:
+                st.warning("📊 **MEJOR COMBINACIÓN ENCONTRADA** (casi verde)")
+            
+            st.markdown(f"""
+            <div style='background-color: {'#27ae60' if mejor['retraso'] <= 0 else '#f39c12'}; padding: 15px; border-radius: 10px;'>
+                <p style='color: white; margin: 5px;'><strong>🌤️ Clima:</strong> {mejor['clima']}</p>
+                <p style='color: white; margin: 5px;'><strong>👷 Mano de obra:</strong> {mejor['mano_obra']:,.0f} horas ({mejor['mult_mo']*100:.0f}% del actual)</p>
+                <p style='color: white; margin: 5px;'><strong>🏗️ Materiales:</strong> {mejor['materiales']:,.0f} ton ({mejor['mult_mat']*100:.0f}% del actual)</p>
+                <p style='color: white; margin: 5px;'><strong>📊 Retraso estimado:</strong> {mejor['retraso']:.1f} días</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Gráficas del simulador
+        if 'escenarios_verde' in st.session_state:
+            st.markdown("---")
+            st.markdown("##### 📊 COMPARATIVA DE ESTRATEGIAS")
+            
+            escenarios_df = pd.DataFrame(st.session_state['escenarios_verde'])
+            
+            # Ordenar por retraso
+            escenarios_df = escenarios_df.sort_values('retraso')
+            
+            # Colores según valor
+            colors = ['#27ae60' if x <= 0 else '#f39c12' if x <= 30 else '#e74c3c' 
+                     for x in escenarios_df['retraso']]
+            
+            fig = px.bar(
+                escenarios_df.head(10),  # Mostrar top 10
+                x='nombre',
+                y='retraso',
+                title='Top 10 mejores estrategias (ordenadas por menor retraso)',
+                labels={'nombre': 'Estrategia', 'retraso': 'Retraso (días)'}
+            )
+            
+            # Colorear barras individualmente
+            fig.update_traces(marker_color=colors[:10])
+            
+            fig.add_hline(y=0, line_dash="dash", line_color="green", 
+                         annotation_text="VERDE", annotation_position="bottom right")
+            fig.add_hline(y=30, line_dash="dash", line_color="red", 
+                         annotation_text="LÍMITE ROJO", annotation_position="top right")
+            
+            fig.update_layout(height=400, xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
 
 # ============================================
 # GUÍA ESPECIAL PARA LOGRAR VERDE
