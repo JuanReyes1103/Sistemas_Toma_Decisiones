@@ -370,7 +370,7 @@ with col4:
 st.markdown("---")
 
 # ============================================
-# ANÁLISIS VISUAL
+# ANÁLISIS VISUAL - GRÁFICAS MEJORADAS
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📈 ANÁLISIS VISUAL</h2>
@@ -379,47 +379,182 @@ st.markdown("""
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
-    st.markdown("##### 🏗️ % Retraso por Tipo de Obra")
+    st.markdown("##### 🏗️ Retraso Promedio por Tipo de Obra")
     if not df_filtrado.empty:
         retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Porcentaje_Retraso'].mean().reset_index()
         retraso_tipo.columns = ['Tipo de Obra', 'Retraso Promedio (%)']
+        
+        # Colores pastel personalizados
+        colores_pastel = ['#FFB3BA', '#FFDFBA', '#FFFFBA', '#BAFFC9', '#BAE1FF', '#D4B8FF', '#FFB8F0', '#B8E2FF']
         
         fig1 = px.bar(
             retraso_tipo, 
             x='Tipo de Obra', 
             y='Retraso Promedio (%)',
-            color='Retraso Promedio (%)',
-            color_continuous_scale=['green', 'yellow', 'red'],
-            range_color=[0, 20],
-            title='% de retraso promedio por tipo de obra'
+            color='Tipo de Obra',
+            color_discrete_sequence=colores_pastel,
+            title='% de retraso promedio por tipo de obra',
+            text_auto='.1f'
         )
-        fig1.add_hline(y=5, line_dash="dash", line_color="green", annotation_text="Límite Verde (5%)")
-        fig1.add_hline(y=15, line_dash="dash", line_color="red", annotation_text="Límite Rojo (15%)")
-        fig1.update_layout(height=400)
+        
+        # Líneas de umbral
+        fig1.add_hline(y=5, line_dash="dash", line_color="#2ecc71", 
+                      annotation_text="Límite Verde (5%)", annotation_position="bottom right")
+        fig1.add_hline(y=15, line_dash="dash", line_color="#e74c3c", 
+                      annotation_text="Límite Rojo (15%)", annotation_position="top right")
+        
+        fig1.update_layout(
+            height=450,
+            xaxis_title="",
+            yaxis_title="Retraso Promedio (%)",
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12)
+        )
+        
+        # Personalizar barras
+        fig1.update_traces(
+            marker_line_width=1,
+            marker_line_color="white",
+            opacity=0.9,
+            textposition='outside',
+            textfont_size=12
+        )
+        
         st.plotly_chart(fig1, use_container_width=True)
 
 with col_g2:
-    st.markdown("##### ☁️ Impacto del Clima en Retrasos")
+    st.markdown("##### ☁️ Distribución de Proyectos por Clima")
     if not df_filtrado.empty:
-        clima_retraso = df_filtrado.groupby('Clima')['Porcentaje_Retraso'].mean().reset_index()
-        clima_retraso.columns = ['Clima', 'Retraso Promedio (%)']
+        clima_count = df_filtrado['Clima'].value_counts().reset_index()
+        clima_count.columns = ['Clima', 'Cantidad de Proyectos']
         
-        fig2 = px.bar(
-            clima_retraso,
-            x='Clima',
-            y='Retraso Promedio (%)',
-            color='Retraso Promedio (%)',
-            color_continuous_scale=['green', 'yellow', 'red'],
-            range_color=[0, 20],
-            title='% de retraso promedio por condición climática'
+        # Colores pastel para el gráfico circular
+        colores_pastel_circular = ['#FFB3BA', '#FFDFBA', '#BAFFC9', '#BAE1FF', '#D4B8FF', '#FFB8F0']
+        
+        fig2 = px.pie(
+            clima_count,
+            values='Cantidad de Proyectos',
+            names='Clima',
+            title='Distribución de proyectos por condición climática',
+            color_discrete_sequence=colores_pastel_circular,
+            hole=0.4  # Donut chart (opcional, puedes cambiar a 0 para pastel tradicional)
         )
-        fig2.add_hline(y=5, line_dash="dash", line_color="green")
-        fig2.add_hline(y=15, line_dash="dash", line_color="red")
-        fig2.update_layout(height=400)
+        
+        fig2.update_traces(
+            textposition='inside', 
+            textinfo='percent+label',
+            textfont_size=14,
+            marker=dict(line=dict(color='white', width=2)),
+            pull=[0.02] * len(clima_count)  # Separar ligeramente las rebanadas
+        )
+        
+        fig2.update_layout(
+            height=450,
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
         st.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("---")
 
+# ============================================
+# GRÁFICA ADICIONAL: Distribución de Niveles de Riesgo
+# ============================================
+st.markdown("##### 🌍 Distribución Global de Niveles de Riesgo")
+
+if not df_filtrado.empty:
+    col_g3, col_g4 = st.columns(2)
+    
+    with col_g3:
+        # Gráfico de pastel para niveles de riesgo
+        riesgo_global = df_filtrado['Nivel_Riesgo'].value_counts().reset_index()
+        riesgo_global.columns = ['Nivel de Riesgo', 'Cantidad']
+        
+        # Mapa de colores pastel para los niveles de riesgo
+        color_map_riesgo = {
+            '🟢 Controlado (0-5%)': '#A8E6CF',  # Verde pastel
+            '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',  # Naranja pastel
+            '🔴 Crítico (>15%)': '#FFAAA5'  # Rojo pastel
+        }
+        
+        fig3 = px.pie(
+            riesgo_global,
+            values='Cantidad',
+            names='Nivel de Riesgo',
+            color='Nivel de Riesgo',
+            color_discrete_map=color_map_riesgo,
+            title='Distribución por nivel de riesgo',
+            hole=0.3
+        )
+        
+        fig3.update_traces(
+            textposition='inside', 
+            textinfo='percent+label',
+            textfont_size=12,
+            marker=dict(line=dict(color='white', width=2))
+        )
+        
+        fig3.update_layout(
+            height=400,
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        st.plotly_chart(fig3, use_container_width=True)
+    
+    with col_g4:
+        # Gráfico de barras apiladas para relación Tipo de Obra vs Nivel de Riesgo
+        riesgo_tipo = pd.crosstab(
+            df_filtrado['Tipo de Obra'], 
+            df_filtrado['Nivel_Riesgo']
+        ).reset_index()
+        
+        riesgo_tipo_long = pd.melt(
+            riesgo_tipo, 
+            id_vars=['Tipo de Obra'], 
+            value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
+            var_name='Nivel de Riesgo', 
+            value_name='Cantidad'
+        )
+        
+        color_map_riesgo_barras = {
+            '🟢 Controlado (0-5%)': '#A8E6CF',
+            '🟡 Riesgo Moderado (5-15%)': '#FFD3B6',
+            '🔴 Crítico (>15%)': '#FFAAA5'
+        }
+        
+        fig4 = px.bar(
+            riesgo_tipo_long,
+            x='Tipo de Obra',
+            y='Cantidad',
+            color='Nivel de Riesgo',
+            color_discrete_map=color_map_riesgo_barras,
+            title='Distribución de riesgos por tipo de obra',
+            barmode='stack',
+            text_auto=True
+        )
+        
+        fig4.update_layout(
+            height=400,
+            xaxis_title="",
+            yaxis_title="Cantidad de proyectos",
+            legend_title="",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        
+        fig4.update_traces(
+            textfont_size=11,
+            textposition='inside'
+        )
+        
+        st.plotly_chart(fig4, use_container_width=True)
 # ============================================
 # MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE KEY)
 # ============================================
