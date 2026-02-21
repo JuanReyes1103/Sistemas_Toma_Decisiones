@@ -439,7 +439,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - CON VALORES DINÁMICOS)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - VALORES DINÁMICOS)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
