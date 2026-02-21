@@ -570,7 +570,7 @@ else:
     st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CON MEJOR VISIBILIDAD)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - TEXTO LEGIBLE)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -633,63 +633,53 @@ with col_m2:
         mat_formateada = f"{res['materiales_optimos']:,.0f}".replace(',', ',')
         costo_formateado = f"{res['costo_minimo']:,.0f}".replace(',', ',')
         
-        # Mostrar los resultados con fondo blanco y texto oscuro para máxima legibilidad
+        # Mostrar los resultados con fondo blanco y texto negro legible
         st.markdown(f"""
-        <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>
-            <h4 style='color: #2c3e50; text-align: center; margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 10px;'>
+        <div style='background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
+            <h4 style='color: #2c3e50; text-align: center; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #3498db; padding-bottom: 10px;'>
                 ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}
             </h4>
             
-            <p style='margin: 5px 0 15px 0; text-align: center; color: #7f8c8d; font-size: 14px;'>
-                <span style='background-color: #e8f4fd; padding: 3px 10px; border-radius: 20px;'>
+            <p style='margin: 5px 0 15px 0; text-align: center; color: #2c3e50; font-size: 14px;'>
                 📊 Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos
-                </span>
             </p>
             
-            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #3498db;'>
-                    <div style='font-size: 28px; margin-bottom: 5px;'>👷</div>
-                    <div style='font-size: 14px; color: #7f8c8d;'>MANO DE OBRA</div>
-                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{mo_formateada} horas</div>
-                </div>
-                
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #e67e22;'>
-                    <div style='font-size: 28px; margin-bottom: 5px;'>🏗️</div>
-                    <div style='font-size: 14px; color: #7f8c8d;'>MATERIALES</div>
-                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{mat_formateada} ton</div>
-                </div>
-            </div>
+            <table style='width: 100%; border-collapse: collapse; margin-bottom: 15px;'>
+                <tr>
+                    <td style='padding: 8px;'><span style='font-size: 20px;'>👷</span></td>
+                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Mano de obra:</strong></td>
+                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{mo_formateada} horas</span></td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px;'><span style='font-size: 20px;'>🏗️</span></td>
+                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Materiales:</strong></td>
+                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{mat_formateada} ton</span></td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px;'><span style='font-size: 20px;'>💰</span></td>
+                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Costo estimado:</strong></td>
+                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>${costo_formateado}</span></td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px;'><span style='font-size: 20px;'>📊</span></td>
+                    <td style='padding: 8px;'><strong style='color: #2c3e50;'>Productividad:</strong></td>
+                    <td style='padding: 8px; text-align: right;'><span style='color: #2c3e50; font-weight: bold;'>{res['productividad']:.3f} t/h</span></td>
+                </tr>
+            </table>
             
-            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #9b59b6;'>
-                    <div style='font-size: 28px; margin-bottom: 5px;'>💰</div>
-                    <div style='font-size: 14px; color: #7f8c8d;'>COSTO</div>
-                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>${costo_formateado}</div>
-                </div>
-                
-                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #27ae60;'>
-                    <div style='font-size: 28px; margin-bottom: 5px;'>📊</div>
-                    <div style='font-size: 14px; color: #7f8c8d;'>PRODUCTIVIDAD</div>
-                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{res['productividad']:.3f} t/h</div>
-                </div>
-            </div>
-            
-            <div style='background-color: #e8f4fd; padding: 12px; border-radius: 8px; margin-top: 10px; text-align: center;'>
-                <p style='margin: 0; color: #2c3e50; font-size: 14px;'>
-                    <i>📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días</i>
-                </p>
-            </div>
+            <p style='margin: 5px 0 0 0; color: #7f8c8d; font-size: 13px; text-align: center; border-top: 1px solid #eee; padding-top: 10px;'>
+                📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días
+            </p>
         </div>
         """, unsafe_allow_html=True)
     
     else:
         # Mensaje cuando no hay datos calculados aún
         st.markdown("""
-        <div style='background-color: #f8f9fa; padding: 60px 20px; border-radius: 15px; text-align: center; border: 2px dashed #bdc3c7;'>
-            <h3 style='color: #7f8c8d; margin: 0; font-size: 24px;'>📐 OPTIMIZADOR LISTO</h3>
-            <p style='color: #95a5a6; margin: 15px 0 0 0; font-size: 16px;'>
-                👈 Configura los parámetros y haz clic en "CALCULAR"<br>
-                <span style='font-size: 14px;'>Los resultados aparecerán aquí con todos los detalles</span>
+        <div style='background-color: white; padding: 40px 20px; border-radius: 10px; text-align: center; border: 1px dashed #bdc3c7;'>
+            <h4 style='color: #7f8c8d; margin: 0;'>📐 OPTIMIZADOR LISTO</h4>
+            <p style='color: #95a5a6; margin: 10px 0 0 0;'>
+                👈 Configura los parámetros y haz clic en "CALCULAR"
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -811,11 +801,15 @@ if 'simulacion_alertas' in st.session_state and 'simulacion_porcentaje' in st.se
     
     with col_r2:
         st.markdown(f"""
-        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
-            <h4 style='color: #2c3e50; margin-top: 0;'>📋 INTERPRETACIÓN PMI</h4>
-            <p><strong>SPI equivalente:</strong> {100/(100+porcentaje):.2f}</p>
-            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*duracion_sim:.1f} días</p>
-            <p><small>*Basado en estándares del Project Management Institute</small></p>
+        <div style='background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
+            <h4 style='color: #2c3e50; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #3498db; padding-bottom: 10px;'>
+                📋 INTERPRETACIÓN PMI
+            </h4>
+            <p style='margin: 10px 0; color: #2c3e50;'><strong>SPI equivalente:</strong> {100/(100+porcentaje):.2f}</p>
+            <p style='margin: 10px 0; color: #2c3e50;'><strong>Días de retraso estimados:</strong> {(porcentaje/100)*duracion_sim:.1f} días</p>
+            <p style='margin: 15px 0 0 0; color: #7f8c8d; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px;'>
+                *Basado en estándares del Project Management Institute
+            </p>
         </div>
         """, unsafe_allow_html=True)
     
