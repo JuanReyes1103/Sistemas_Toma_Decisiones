@@ -30,6 +30,114 @@ st.markdown("""
 st.markdown("---")
 
 # ============================================
+# ANÁLISIS VISUAL - GRÁFICAS DE PASTEL
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>📈 ANÁLISIS VISUAL</h2>
+""", unsafe_allow_html=True)
+
+col_g1, col_g2 = st.columns(2)
+
+with col_g1:
+    st.markdown("##### 🏗️ Distribución de Riesgo por Tipo de Obra")
+    if not df_filtrado.empty:
+        # Crear tabla de contingencia: Tipo de Obra vs Nivel de Riesgo
+        riesgo_tipo = pd.crosstab(
+            df_filtrado['Tipo de Obra'], 
+            df_filtrado['Nivel_Riesgo']
+        ).reset_index()
+        
+        # Convertir a formato largo para plotly
+        riesgo_tipo_long = pd.melt(
+            riesgo_tipo, 
+            id_vars=['Tipo de Obra'], 
+            value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
+            var_name='Nivel de Riesgo', 
+            value_name='Cantidad'
+        )
+        
+        # Mapa de colores consistente
+        color_map = {
+            '🟢 Controlado (0-5%)': '#27ae60',
+            '🟡 Riesgo Moderado (5-15%)': '#f39c12',
+            '🔴 Crítico (>15%)': '#e74c3c'
+        }
+        
+        fig1 = px.sunburst(
+            riesgo_tipo_long,
+            path=['Tipo de Obra', 'Nivel de Riesgo'],
+            values='Cantidad',
+            color='Nivel de Riesgo',
+            color_discrete_map=color_map,
+            title='Distribución de niveles de riesgo por tipo de obra'
+        )
+        fig1.update_layout(height=500)
+        st.plotly_chart(fig1, use_container_width=True)
+
+with col_g2:
+    st.markdown("##### ☁️ Distribución de Riesgo por Clima")
+    if not df_filtrado.empty:
+        # Crear tabla de contingencia: Clima vs Nivel de Riesgo
+        riesgo_clima = pd.crosstab(
+            df_filtrado['Clima'], 
+            df_filtrado['Nivel_Riesgo']
+        ).reset_index()
+        
+        # Convertir a formato largo
+        riesgo_clima_long = pd.melt(
+            riesgo_clima, 
+            id_vars=['Clima'], 
+            value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
+            var_name='Nivel de Riesgo', 
+            value_name='Cantidad'
+        )
+        
+        # Mapa de colores consistente
+        color_map = {
+            '🟢 Controlado (0-5%)': '#27ae60',
+            '🟡 Riesgo Moderado (5-15%)': '#f39c12',
+            '🔴 Crítico (>15%)': '#e74c3c'
+        }
+        
+        fig2 = px.sunburst(
+            riesgo_clima_long,
+            path=['Clima', 'Nivel de Riesgo'],
+            values='Cantidad',
+            color='Nivel de Riesgo',
+            color_discrete_map=color_map,
+            title='Distribución de niveles de riesgo por condición climática'
+        )
+        fig2.update_layout(height=500)
+        st.plotly_chart(fig2, use_container_width=True)
+
+st.markdown("---")
+
+# Gráfica adicional: Distribución global de riesgo
+st.markdown("##### 🌍 Distribución Global de Niveles de Riesgo")
+if not df_filtrado.empty:
+    riesgo_global = df_filtrado['Nivel_Riesgo'].value_counts().reset_index()
+    riesgo_global.columns = ['Nivel de Riesgo', 'Cantidad']
+    
+    color_map = {
+        '🟢 Controlado (0-5%)': '#27ae60',
+        '🟡 Riesgo Moderado (5-15%)': '#f39c12',
+        '🔴 Crítico (>15%)': '#e74c3c'
+    }
+    
+    fig3 = px.pie(
+        riesgo_global,
+        values='Cantidad',
+        names='Nivel de Riesgo',
+        color='Nivel de Riesgo',
+        color_discrete_map=color_map,
+        title='Distribución global de niveles de riesgo',
+        hole=0.3
+    )
+    fig3.update_traces(textposition='inside', textinfo='percent+label')
+    fig3.update_layout(height=400)
+    st.plotly_chart(fig3, use_container_width=True)
+
+# ============================================
 # MODELO DE DATOS - CARGA Y PROCESAMIENTO
 # ============================================
 @st.cache_data
@@ -590,8 +698,8 @@ if st.button("🎯 PREDECIR % DE RETRASO CON IA", use_container_width=True, key=
         st.session_state['simulacion_alertas'] = alertas
         st.session_state['simulacion_porcentaje'] = porcentaje_pred
 
-# Mostrar resultados de la simulación
-if 'simulacion_alertas' in st.session_state:
+# Mostrar resultados de la simulación - CORREGIDO (con verificación de existencia)
+if 'simulacion_alertas' in st.session_state and 'simulacion_porcentaje' in st.session_state:
     st.markdown("---")
     st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN IA")
     
@@ -627,10 +735,10 @@ if 'simulacion_alertas' in st.session_state:
     
     with col_r2:
         st.markdown(f"""
-        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px;'>
+        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
             <h4 style='color: #2c3e50; margin-top: 0;'>📋 INTERPRETACIÓN PMI</h4>
             <p><strong>SPI equivalente:</strong> {100/(100+porcentaje):.2f}</p>
-            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*duracion_sim:.1f} días</p>
+            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*st.session_state.get('duracion_sim', 300):.1f} días</p>
             <p><small>*Basado en estándares del Project Management Institute</small></p>
         </div>
         """, unsafe_allow_html=True)
@@ -644,8 +752,6 @@ if 'simulacion_alertas' in st.session_state:
             st.warning(f"**{tipo}:** {mensaje}")
         elif "🟢" in tipo:
             st.success(f"**{tipo}:** {mensaje}")
-
-st.markdown("---")
 
 # ============================================
 # TABLA DE DATOS CON MÉTRICAS PMI
