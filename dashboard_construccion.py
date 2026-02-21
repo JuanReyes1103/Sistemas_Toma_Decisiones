@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
-from datetime import datetime, timedelta
+from scipy.optimize import minimize
 import io
 import warnings
 warnings.filterwarnings('ignore')
@@ -30,7 +30,7 @@ st.markdown("""
 st.markdown("---")
 
 # ============================================
-# DATOS EN FORMATO CSV
+# MODELO DE DATOS - CARGA Y PROCESAMIENTO
 # ============================================
 @st.cache_data
 def cargar_datos():
@@ -139,22 +139,68 @@ def cargar_datos():
     df = pd.read_csv(io.StringIO(csv_data))
     df['Retraso'] = df['Duracion_Real'] - df['Duracion_Estimada']
     df['Desviacion_Costo'] = ((df['Costo_Real'] - df['Presupuesto']) / df['Presupuesto']) * 100
-    
-    # Clasificación de riesgo
-    df['Nivel_Riesgo'] = pd.cut(df['Retraso'], 
-                                 bins=[-float('inf'), 0, 30, float('inf')],
-                                 labels=['✅ Bajo Riesgo', '⚠️ Medio Riesgo', '🔴 Alto Riesgo'])
+    df['Productividad'] = df['Materiales'] / df['Mano_Obra']
     return df
 
-# Cargar datos
 df = cargar_datos()
 
 # ============================================
-# ENTRENAMIENTO DE IA (MÚLTIPLES MODELOS)
+# MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS
+# ============================================
+def modelo_optimizacion(tipo_obra, duracion_objetivo):
+    """
+    Modelo matemático para optimizar la asignación de recursos
+    usando programación lineal
+    """
+    # Parámetros según tipo de obra
+    params = {
+        'Carretera': {'mo_min': 30000, 'mo_max': 100000, 'mat_min': 5000, 'mat_max': 20000, 'costo_mo': 45, 'costo_mat': 1200},
+        'Aeropuerto': {'mo_min': 40000, 'mo_max': 120000, 'mat_min': 8000, 'mat_max': 25000, 'costo_mo': 60, 'costo_mat': 2500},
+        'Escuela': {'mo_min': 25000, 'mo_max': 80000, 'mat_min': 4000, 'mat_max': 15000, 'costo_mo': 35, 'costo_mat': 800},
+        'Hospital': {'mo_min': 35000, 'mo_max': 110000, 'mat_min': 6000, 'mat_max': 20000, 'costo_mo': 55, 'costo_mat': 1800},
+        'Edificio': {'mo_min': 30000, 'mo_max': 90000, 'mat_min': 5000, 'mat_max': 18000, 'costo_mo': 40, 'costo_mat': 1500},
+        'Puente': {'mo_min': 20000, 'mo_max': 70000, 'mat_min': 3000, 'mat_max': 15000, 'costo_mo': 70, 'costo_mat': 3000},
+        'Estadio': {'mo_min': 35000, 'mo_max': 100000, 'mat_min': 6000, 'mat_max': 20000, 'costo_mo': 50, 'costo_mat': 2000},
+        'Centro Comercial': {'mo_min': 30000, 'mo_max': 95000, 'mat_min': 5000, 'mat_max': 18000, 'costo_mo': 48, 'costo_mat': 1600}
+    }
+    
+    p = params.get(tipo_obra, params['Carretera'])
+    
+    # Función objetivo: minimizar costo total
+    def costo_total(x):
+        materiales, horas_mo = x
+        return p['costo_mo'] * horas_mo + p['costo_mat'] * materiales
+    
+    # Restricciones
+    restricciones = [
+        {'type': 'ineq', 'fun': lambda x: x[0] - p['mat_min']},  # Materiales mínimos
+        {'type': 'ineq', 'fun': lambda x: p['mat_max'] - x[0]},  # Materiales máximos
+        {'type': 'ineq', 'fun': lambda x: x[1] - p['mo_min']},   # MO mínima
+        {'type': 'ineq', 'fun': lambda x: p['mo_max'] - x[1]},   # MO máxima
+        {'type': 'ineq', 'fun': lambda x: (x[0] / x[1]) - 0.05}, # Productividad mínima
+        {'type': 'ineq', 'fun': lambda x: 0.3 - (x[0] / x[1])}   # Productividad máxima
+    ]
+    
+    # Punto inicial
+    x0 = [(p['mat_min'] + p['mat_max'])/2, (p['mo_min'] + p['mo_max'])/2]
+    
+    # Optimizar
+    resultado = minimize(costo_total, x0, method='SLSQP', constraints=restricciones)
+    
+    if resultado.success:
+        return {
+            'materiales_optimos': resultado.x[0],
+            'mano_obra_optima': resultado.x[1],
+            'costo_minimo': resultado.fun
+        }
+    else:
+        return None
+
+# ============================================
+# MODELO DE IA - PREDICCIÓN DE RETRASOS Y RIESGOS
 # ============================================
 @st.cache_resource
 def entrenar_modelos_ia():
-    # Preparar datos
     le_tipo = LabelEncoder()
     le_clima = LabelEncoder()
     
@@ -212,56 +258,44 @@ def generar_alertas(tipo, clima, presupuesto, duracion, materiales_actuales, man
     tipo_cod = le_tipo.transform([tipo])[0]
     clima_cod = le_clima.transform([clima])[0]
     
-    # Preparar features
     X = np.array([[presupuesto, duracion, materiales_actuales, mano_obra, tipo_cod, clima_cod]])
     X_scaled = scaler.transform(X)
     
-    # Predecir
     retraso_pred = modelo_retraso.predict(X_scaled)[0]
-    riesgo_pred = modelo_riesgo.predict(X_scaled)[0]
     materiales_optimos = modelo_materiales.predict(X_scaled)[0]
     
-    # ALERTA 1: Retraso
+    # ALERTAS DE RETRASO
     if retraso_pred > 30:
-        alertas.append(f"🔴 ¡ALERTA CRÍTICA! Retraso estimado de {retraso_pred:.1f} días")
+        alertas.append(("🔴 ALERTA CRÍTICA", f"Retraso estimado de {retraso_pred:.1f} días"))
     elif retraso_pred > 15:
-        alertas.append(f"🟡 PRECAUCIÓN: Retraso estimado de {retraso_pred:.1f} días")
+        alertas.append(("🟡 PRECAUCIÓN", f"Retraso estimado de {retraso_pred:.1f} días"))
     elif retraso_pred <= 0:
-        alertas.append(f"✅ PROYECTO VERDE: {abs(retraso_pred):.1f} días antes de lo previsto")
+        alertas.append(("✅ PROYECTO VERDE", f"{abs(retraso_pred):.1f} días antes de lo previsto"))
     
-    # ALERTA 2: Materiales
+    # ALERTAS DE MATERIALES
     diff_materiales = ((materiales_actuales - materiales_optimos) / materiales_optimos) * 100
     
     if abs(diff_materiales) > 30:
         if diff_materiales > 0:
-            alertas.append(f"🔴 ¡ALERTA! Exceso de materiales: {diff_materiales:.0f}% más de lo óptimo")
+            alertas.append(("🔴 ALERTA", f"Exceso de materiales: {diff_materiales:.0f}% más de lo óptimo"))
         else:
-            alertas.append(f"🔴 ¡ALERTA! Faltan materiales: {abs(diff_materiales):.0f}% menos de lo óptimo")
+            alertas.append(("🔴 ALERTA", f"Faltan materiales: {abs(diff_materiales):.0f}% menos de lo óptimo"))
     elif abs(diff_materiales) > 15:
         if diff_materiales > 0:
-            alertas.append(f"🟡 PRECAUCIÓN: {diff_materiales:.0f}% más materiales de lo óptimo")
+            alertas.append(("🟡 PRECAUCIÓN", f"{diff_materiales:.0f}% más materiales de lo óptimo"))
         else:
-            alertas.append(f"🟡 PRECAUCIÓN: Falta {abs(diff_materiales):.0f}% de materiales")
+            alertas.append(("🟡 PRECAUCIÓN", f"Falta {abs(diff_materiales):.0f}% de materiales"))
     
-    # ALERTA 3: Clima adverso
+    # ALERTAS DE CLIMA
     if clima in ['Tormenta', 'Viento Fuerte']:
-        alertas.append(f"🔴 Clima adverso detectado - Riesgo de retraso +30%")
+        alertas.append(("🔴 CLIMA ADVERSO", "Riesgo de retraso +30%"))
     elif clima == 'Lluvia':
-        alertas.append(f"🟡 Lluvia - Riesgo de retraso +15%")
-    
-    # ALERTA 4: Predicción de necesidad de materiales
-    consumo_diario = materiales_actuales / duracion if duracion > 0 else 0
-    dias_restantes = materiales_actuales / consumo_diario if consumo_diario > 0 else 0
-    
-    if dias_restantes < duracion * 0.3:
-        alertas.append(f"🔴 ¡ALERTA! Materiales solo alcanzan para {dias_restantes:.0f} días")
-    elif dias_restantes < duracion * 0.5:
-        alertas.append(f"🟡 Necesitarás reabastecer en {dias_restantes:.0f} días")
+        alertas.append(("🟡 LLUVIA", "Riesgo de retraso +15%"))
     
     return alertas, retraso_pred, materiales_optimos, diff_materiales
 
 # ============================================
-# SIDEBAR - SOLO FILTROS
+# SIDEBAR - FILTROS
 # ============================================
 st.sidebar.markdown("""
 <h2 style='text-align: center; color: #3498db;'>🔍 FILTROS</h2>
@@ -289,7 +323,7 @@ if climas:
     df_filtrado = df_filtrado[df_filtrado['Clima'].isin(climas)]
 
 # ============================================
-# PANEL DE CONTROL (MÉTRICAS PRINCIPALES)
+# PANEL DE CONTROL
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📊 PANEL DE CONTROL</h2>
@@ -340,7 +374,7 @@ with col4:
 st.markdown("---")
 
 # ============================================
-# ANÁLISIS VISUAL (AHORA DEBAJO DEL PANEL)
+# ANÁLISIS VISUAL (CORREGIDO - SIN TEXTOS CONFUSOS)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📈 ANÁLISIS VISUAL</h2>
@@ -349,135 +383,73 @@ st.markdown("""
 col_g1, col_g2 = st.columns(2)
 
 with col_g1:
-    st.markdown("##### 🏗️ Retraso por Tipo de Obra")
+    st.markdown("##### 🏗️ Retraso Promedio por Tipo de Obra")
     if not df_filtrado.empty:
-        retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Retraso'].agg(['mean', 'count']).reset_index()
-        retraso_tipo.columns = ['Tipo de Obra', 'Retraso Promedio', 'Cantidad']
+        retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Retraso'].mean().reset_index()
+        retraso_tipo.columns = ['Tipo de Obra', 'Retraso Promedio (días)']
         
         fig1 = px.bar(
             retraso_tipo, 
             x='Tipo de Obra', 
-            y='Retraso Promedio',
-            color='Retraso Promedio',
+            y='Retraso Promedio (días)',
+            color='Retraso Promedio (días)',
             color_continuous_scale='RdYlGn_r',
-            text='Cantidad',
-            title='Retraso promedio por tipo de obra',
-            labels={'Retraso Promedio': 'Días de retraso'}
+            title='Retraso promedio por tipo de obra'
         )
-        fig1.update_traces(texttemplate='n=%{text}', textposition='outside')
         fig1.update_layout(height=400)
         st.plotly_chart(fig1, use_container_width=True)
 
 with col_g2:
-    st.markdown("##### ☁️ Distribución por Clima")
+    st.markdown("##### ☁️ Impacto del Clima en Retrasos")
     if not df_filtrado.empty:
-        clima_stats = df_filtrado.groupby('Clima').agg({
-            'Retraso': 'mean',
-            'Proyecto ID': 'count'
-        }).reset_index()
-        clima_stats.columns = ['Clima', 'Retraso Promedio', 'Cantidad']
+        clima_retraso = df_filtrado.groupby('Clima')['Retraso'].mean().reset_index()
+        clima_retraso.columns = ['Clima', 'Retraso Promedio (días)']
         
-        fig2 = px.pie(
-            clima_stats,
-            values='Cantidad',
-            names='Clima',
-            title='Distribución de proyectos por clima',
-            hole=0.3,
-            color_discrete_sequence=px.colors.qualitative.Set3
+        fig2 = px.bar(
+            clima_retraso,
+            x='Clima',
+            y='Retraso Promedio (días)',
+            color='Retraso Promedio (días)',
+            color_continuous_scale='RdYlGn_r',
+            title='Retraso promedio por condición climática'
         )
-        fig2.update_traces(textposition='inside', textinfo='percent+label')
         fig2.update_layout(height=400)
         st.plotly_chart(fig2, use_container_width=True)
 
 st.markdown("---")
 
 # ============================================
-# CORRELACIÓN
+# MODELO MATEMÁTICO - OPTIMIZADOR
 # ============================================
 st.markdown("""
-<h2 style='color: #2c3e50;'>📊 ANÁLISIS DE CORRELACIÓN</h2>
-<p style='color: #7f8c8d;'>¿Cómo afectan los recursos a los retrasos?</p>
+<h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
+<p style='color: #7f8c8d;'>Programación lineal para minimizar costos y maximizar eficiencia</p>
 """, unsafe_allow_html=True)
 
-col_c1, col_c2 = st.columns(2)
+col_m1, col_m2 = st.columns(2)
 
-with col_c1:
-    st.markdown("##### 🔷 Materiales vs Retraso")
+with col_m1:
+    tipo_opt = st.selectbox("🏗️ Selecciona tipo de obra para optimizar", df['Tipo de Obra'].unique(), key='tipo_opt')
     
-    if not df_filtrado.empty and len(df_filtrado) > 1:
-        corr_materiales = df_filtrado['Materiales'].corr(df_filtrado['Retraso'])
+    if st.button("🔮 EJECUTAR OPTIMIZADOR", use_container_width=True):
+        resultado_opt = modelo_optimizacion(tipo_opt, 300)
         
-        fig3 = px.scatter(
-            df_filtrado, 
-            x='Materiales', 
-            y='Retraso', 
-            color='Tipo de Obra',
-            size='Presupuesto',
-            hover_data=['Proyecto ID'],
-            title=f'Correlación: {corr_materiales:.2f}',
-            labels={'Materiales': 'Materiales (ton)', 'Retraso': 'Retraso (días)'},
-            opacity=0.7
-        )
-        
-        # Línea de tendencia
-        z = np.polyfit(df_filtrado['Materiales'], df_filtrado['Retraso'], 1)
-        p = np.poly1d(z)
-        fig3.add_trace(go.Scatter(
-            x=df_filtrado['Materiales'].sort_values(),
-            y=p(df_filtrado['Materiales'].sort_values()),
-            mode='lines',
-            name='Tendencia',
-            line=dict(color='red', width=2)
-        ))
-        
-        fig3.update_layout(height=400)
-        st.plotly_chart(fig3, use_container_width=True)
-        
-        if abs(corr_materiales) < 0.3:
-            st.info("📌 Relación débil - Los materiales no son el factor principal")
-        elif abs(corr_materiales) < 0.7:
-            st.warning("📌 Relación moderada - Los materiales influyen")
-        else:
-            st.error("📌 Relación fuerte - Los materiales son críticos")
+        if resultado_opt:
+            st.session_state['resultado_opt'] = resultado_opt
+            st.session_state['tipo_opt'] = tipo_opt
 
-with col_c2:
-    st.markdown("##### 🔶 Mano de Obra vs Retraso")
-    
-    if not df_filtrado.empty and len(df_filtrado) > 1:
-        corr_mano_obra = df_filtrado['Mano_Obra'].corr(df_filtrado['Retraso'])
-        
-        fig4 = px.scatter(
-            df_filtrado, 
-            x='Mano_Obra', 
-            y='Retraso', 
-            color='Clima',
-            size='Presupuesto',
-            hover_data=['Proyecto ID'],
-            title=f'Correlación: {corr_mano_obra:.2f}',
-            labels={'Mano_Obra': 'Mano de Obra (horas)', 'Retraso': 'Retraso (días)'},
-            opacity=0.7
-        )
-        
-        # Línea de tendencia
-        z = np.polyfit(df_filtrado['Mano_Obra'], df_filtrado['Retraso'], 1)
-        p = np.poly1d(z)
-        fig4.add_trace(go.Scatter(
-            x=df_filtrado['Mano_Obra'].sort_values(),
-            y=p(df_filtrado['Mano_Obra'].sort_values()),
-            mode='lines',
-            name='Tendencia',
-            line=dict(color='red', width=2)
-        ))
-        
-        fig4.update_layout(height=400)
-        st.plotly_chart(fig4, use_container_width=True)
-        
-        if abs(corr_mano_obra) < 0.3:
-            st.info("📌 Relación débil - La mano de obra no es crítica")
-        elif abs(corr_mano_obra) < 0.7:
-            st.warning("📌 Relación moderada - Optimizar mano de obra ayuda")
-        else:
-            st.error("📌 Relación fuerte - La mano de obra es clave")
+with col_m2:
+    if 'resultado_opt' in st.session_state:
+        res = st.session_state['resultado_opt']
+        st.markdown(f"""
+        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px;'>
+            <h4 style='color: #2c3e50;'>✅ RECURSOS ÓPTIMOS PARA {st.session_state['tipo_opt']}</h4>
+            <p><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
+            <p><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
+            <p><strong>💰 Costo mínimo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
+            <p><strong>📊 Productividad óptima:</strong> {res['materiales_optimos']/res['mano_obra_optima']:.3f} ton/hora</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -485,7 +457,7 @@ st.markdown("---")
 # SIMULADOR DE IA
 # ============================================
 st.markdown("""
-<h2 style='color: #2c3e50;'>🤖 SIMULADOR DE ESCENARIOS CON IA</h2>
+<h2 style='color: #2c3e50;'>🤖 MODELO DE IA - SIMULADOR DE ESCENARIOS</h2>
 <p style='color: #7f8c8d;'>Configura un proyecto y descubre cómo lograr RETRASO CERO (✅ VERDE)</p>
 """, unsafe_allow_html=True)
 
@@ -545,7 +517,7 @@ with col_s2:
                                     value=50000,
                                     step=5000)
 
-if st.button("🎯 SIMULAR PROYECTO", use_container_width=True):
+if st.button("🎯 SIMULAR PROYECTO CON IA", use_container_width=True):
     alertas, retraso_pred, materiales_optimos, diff_materiales = generar_alertas(
         tipo_sim, clima_sim, presupuesto_sim, duracion_sim, 
         materiales_sim, mano_obra_sim
@@ -555,18 +527,11 @@ if st.button("🎯 SIMULAR PROYECTO", use_container_width=True):
     st.session_state['sim_retraso'] = retraso_pred
     st.session_state['sim_materiales_optimos'] = materiales_optimos
     st.session_state['sim_diff'] = diff_materiales
-    st.session_state['sim_params'] = {
-        'tipo': tipo_sim,
-        'clima': clima_sim,
-        'materiales': materiales_sim,
-        'mano_obra': mano_obra_sim,
-        'duracion': duracion_sim
-    }
 
 # Mostrar resultados de la simulación
 if 'sim_alertas' in st.session_state:
     st.markdown("---")
-    st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN")
+    st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN IA")
     
     col_r1, col_r2 = st.columns(2)
     
@@ -575,7 +540,7 @@ if 'sim_alertas' in st.session_state:
         if retraso <= 0:
             color = "#27ae60"
             emoji = "✅"
-            estado = "VERDE"
+            estado = "VERDE - PROYECTO A TIEMPO"
         elif retraso <= 15:
             color = "#f1c40f"
             emoji = "🟡"
@@ -618,17 +583,17 @@ if 'sim_alertas' in st.session_state:
         </div>
         """, unsafe_allow_html=True)
     
-    # Mostrar alertas con mejor legibilidad
-    st.markdown("### 🚨 ALERTAS GENERADAS:")
-    for alerta in st.session_state['sim_alertas']:
-        if "🔴" in alerta:
-            st.error(alerta)
-        elif "🟡" in alerta:
-            st.warning(alerta)
-        elif "✅" in alerta:
-            st.success(alerta)
+    # Mostrar alertas
+    st.markdown("### 🚨 ALERTAS GENERADAS POR IA:")
+    for tipo, mensaje in st.session_state['sim_alertas']:
+        if "🔴" in tipo:
+            st.error(f"**{tipo}:** {mensaje}")
+        elif "🟡" in tipo:
+            st.warning(f"**{tipo}:** {mensaje}")
+        elif "✅" in tipo:
+            st.success(f"**{tipo}:** {mensaje}")
         else:
-            st.info(alerta)
+            st.info(f"**{tipo}:** {mensaje}")
 
 st.markdown("---")
 
@@ -640,7 +605,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.expander("Ver todos los proyectos", expanded=False):
-    # Formato condicional
     def color_retraso(val):
         if val > 30:
             return 'background-color: #ffebee'
@@ -665,13 +629,15 @@ with st.expander("Ver todos los proyectos", expanded=False):
     )
 
 # ============================================
-# FOOTER
+# FOOTER - RESUMEN DE MODELOS
 # ============================================
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
-    <p>🏗️ <strong>Sistema de Soporte a la Decisión - Gestión de Proyectos de Construcción</strong></p>
-    <p>Modelos: Random Forest · Alertas Predictivas · Análisis de Correlación</p>
-    <p>📊 Práctica E6: Optimización de recursos y minimización de retrasos</p>
+    <p>🏗️ <strong>SISTEMA DE SOPORTE A LA DECISIÓN - PRÁCTICA E6</strong></p>
+    <p>📊 <strong>Modelo de Datos:</strong> 100 proyectos históricos de construcción</p>
+    <p>📐 <strong>Modelo Matemático:</strong> Programación lineal para optimización de recursos</p>
+    <p>🤖 <strong>Modelo de IA:</strong> Random Forest para predicción de retrasos y alertas</p>
+    <p>✅ Simulación de escenarios · Optimización de recursos · Minimización de retrasos</p>
 </div>
 """, unsafe_allow_html=True)
