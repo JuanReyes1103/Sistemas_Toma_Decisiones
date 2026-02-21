@@ -439,7 +439,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE SESSION STATE)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -449,23 +449,25 @@ st.markdown("""
 col_m1, col_m2 = st.columns(2)
 
 with col_m1:
-    tipo_opt = st.selectbox("🏗️ Selecciona tipo de obra para optimizar", df['Tipo de Obra'].unique(), key='tipo_opt')
+    tipo_opt = st.selectbox("🏗️ Selecciona tipo de obra para optimizar", df['Tipo de Obra'].unique(), key='tipo_opt_select')
     
-    if st.button("🔮 EJECUTAR OPTIMIZADOR", use_container_width=True):
+    if st.button("🔮 EJECUTAR OPTIMIZADOR", use_container_width=True, key='btn_optimizar'):
         with st.spinner("Calculando recursos óptimos..."):
             resultado_opt = modelo_optimizacion(tipo_opt)
             
             if resultado_opt:
-                st.session_state['resultado_opt'] = resultado_opt
-                st.session_state['tipo_opt'] = tipo_opt
+                # Usar claves ÚNICAS para session_state
+                st.session_state['resultado_optimizacion'] = resultado_opt
+                st.session_state['tipo_optimizado'] = tipo_opt
                 st.success("✅ Optimización completada!")
 
 with col_m2:
-    if 'resultado_opt' in st.session_state:
-        res = st.session_state['resultado_opt']
+    if 'resultado_optimizacion' in st.session_state:
+        res = st.session_state['resultado_optimizacion']
+        tipo_mostrado = st.session_state['tipo_optimizado']
         st.markdown(f"""
         <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
-            <h4 style='color: #2c3e50;'>✅ RECURSOS ÓPTIMOS PARA {st.session_state['tipo_opt']}</h4>
+            <h4 style='color: #2c3e50;'>✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}</h4>
             <p><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
             <p><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
             <p><strong>💰 Costo mínimo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
@@ -513,53 +515,58 @@ st.markdown("<br>", unsafe_allow_html=True)
 col_s1, col_s2 = st.columns(2)
 
 with col_s1:
-    tipo_sim = st.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique(), key='tipo_sim')
-    clima_sim = st.selectbox("☁️ Clima", df['Clima'].unique(), key='clima_sim')
+    tipo_sim = st.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique(), key='tipo_sim_ia')
+    clima_sim = st.selectbox("☁️ Clima", df['Clima'].unique(), key='clima_sim_ia')
     presupuesto_sim = st.number_input("💰 Presupuesto ($)", 
                                       min_value=1_000_000, 
                                       max_value=50_000_000, 
                                       value=25_000_000,
                                       step=1_000_000,
-                                      format="%d")
+                                      format="%d",
+                                      key='pres_sim_ia')
 
 with col_s2:
     duracion_sim = st.number_input("📅 Duración estimada (días)", 
                                    min_value=50, 
                                    max_value=800, 
                                    value=300,
-                                   step=10)
+                                   step=10,
+                                   key='dur_sim_ia')
     materiales_sim = st.number_input("🏗️ Materiales (ton)", 
                                      min_value=1000, 
                                      max_value=30000, 
                                      value=10000,
-                                     step=500)
+                                     step=500,
+                                     key='mat_sim_ia')
     mano_obra_sim = st.number_input("👷 Mano de obra (horas)", 
                                     min_value=5000, 
                                     max_value=200000, 
                                     value=50000,
-                                    step=5000)
+                                    step=5000,
+                                    key='mo_sim_ia')
 
-if st.button("🎯 SIMULAR PROYECTO CON IA", use_container_width=True):
+if st.button("🎯 SIMULAR PROYECTO CON IA", use_container_width=True, key='btn_sim_ia'):
     with st.spinner("Analizando con IA..."):
         alertas, retraso_pred, materiales_optimos, diff_materiales = generar_alertas(
             tipo_sim, clima_sim, presupuesto_sim, duracion_sim, 
             materiales_sim, mano_obra_sim
         )
         
-        st.session_state['sim_alertas'] = alertas
-        st.session_state['sim_retraso'] = retraso_pred
-        st.session_state['sim_materiales_optimos'] = materiales_optimos
-        st.session_state['sim_diff'] = diff_materiales
+        # Usar claves ÚNICAS para session_state
+        st.session_state['simulacion_alertas'] = alertas
+        st.session_state['simulacion_retraso'] = retraso_pred
+        st.session_state['simulacion_materiales_optimos'] = materiales_optimos
+        st.session_state['simulacion_diff'] = diff_materiales
 
 # Mostrar resultados de la simulación
-if 'sim_alertas' in st.session_state:
+if 'simulacion_alertas' in st.session_state:
     st.markdown("---")
     st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN IA")
     
     col_r1, col_r2 = st.columns(2)
     
     with col_r1:
-        retraso = st.session_state['sim_retraso']
+        retraso = st.session_state['simulacion_retraso']
         if retraso <= 0:
             color = "#27ae60"
             emoji = "✅"
@@ -586,7 +593,7 @@ if 'sim_alertas' in st.session_state:
         """, unsafe_allow_html=True)
     
     with col_r2:
-        diff = st.session_state['sim_diff']
+        diff = st.session_state['simulacion_diff']
         if abs(diff) < 15:
             color_mat = "#27ae60"
             estado_mat = "ÓPTIMO"
@@ -602,13 +609,13 @@ if 'sim_alertas' in st.session_state:
             <h1 style='color: white; margin: 0; font-size: 48px;'>📦</h1>
             <h2 style='color: white; margin: 0;'>{diff:+.0f}%</h2>
             <p style='color: white; margin: 0;'>Materiales ({estado_mat})</p>
-            <p style='color: white; margin: 5px 0 0 0; font-size: 12px;'>Óptimo: {st.session_state['sim_materiales_optimos']:,.0f} ton</p>
+            <p style='color: white; margin: 5px 0 0 0; font-size: 12px;'>Óptimo: {st.session_state['simulacion_materiales_optimos']:,.0f} ton</p>
         </div>
         """, unsafe_allow_html=True)
     
     # Mostrar alertas
     st.markdown("### 🚨 ALERTAS GENERADAS POR IA:")
-    for tipo, mensaje in st.session_state['sim_alertas']:
+    for tipo, mensaje in st.session_state['simulacion_alertas']:
         if "🔴" in tipo:
             st.error(f"**{tipo}:** {mensaje}")
         elif "🟡" in tipo:
