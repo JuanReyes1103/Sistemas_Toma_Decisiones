@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import io
@@ -10,13 +11,20 @@ warnings.filterwarnings('ignore')
 
 # Configuración de la página
 st.set_page_config(
-    page_title="DSS Construcción", 
+    page_title="DSS Construcción - Gestión de Proyectos", 
     page_icon="🏗️", 
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Título
-st.title("🏗️ Sistema de Soporte a la Decisión - Construcción")
+# Título con estilo
+st.markdown("""
+<h1 style='text-align: center; color: #2c3e50;'>
+    🏗️ SISTEMA DE SOPORTE A LA DECISIÓN <br>
+    <span style='font-size: 24px; color: #3498db;'>Gestión de Proyectos y Recursos de Construcción</span>
+</h1>
+""", unsafe_allow_html=True)
+
 st.markdown("---")
 
 # ============================================
@@ -129,6 +137,11 @@ def cargar_datos():
     df = pd.read_csv(io.StringIO(csv_data))
     df['Retraso'] = df['Duracion_Real'] - df['Duracion_Estimada']
     df['Desviacion_Costo'] = ((df['Costo_Real'] - df['Presupuesto']) / df['Presupuesto']) * 100
+    
+    # Clasificación de riesgo
+    df['Nivel_Riesgo'] = pd.cut(df['Retraso'], 
+                                 bins=[-float('inf'), 0, 30, float('inf')],
+                                 labels=['✅ Bajo Riesgo', '⚠️ Medio Riesgo', '🔴 Alto Riesgo'])
     return df
 
 # Cargar datos
@@ -156,17 +169,35 @@ def entrenar_modelo():
     modelo = RandomForestRegressor(n_estimators=50, max_depth=5, random_state=42)
     modelo.fit(X_scaled, y)
     
-    return modelo, scaler, le_tipo, le_clima
+    return modelo, scaler, le_tipo, le_clima, features
 
-modelo, scaler, le_tipo, le_clima = entrenar_modelo()
+modelo, scaler, le_tipo, le_clima, features = entrenar_modelo()
 
 # ============================================
-# SIDEBAR
+# SIDEBAR - FILTROS MEJORADOS
 # ============================================
-st.sidebar.header("🔍 Filtros")
-tipos = st.sidebar.multiselect("Tipo de Obra", df['Tipo de Obra'].unique())
-climas = st.sidebar.multiselect("Clima", df['Clima'].unique())
+st.sidebar.markdown("""
+<h2 style='text-align: center; color: #3498db;'>🔍 FILTROS</h2>
+""", unsafe_allow_html=True)
 
+st.sidebar.markdown("---")
+
+# Filtros con diseño mejorado
+tipos = st.sidebar.multiselect(
+    "🏗️ Tipo de Obra",
+    df['Tipo de Obra'].unique(),
+    help="Selecciona uno o más tipos de obra"
+)
+
+climas = st.sidebar.multiselect(
+    "☁️ Clima",
+    df['Clima'].unique(),
+    help="Selecciona condiciones climáticas"
+)
+
+st.sidebar.markdown("---")
+
+# Aplicar filtros
 df_filtrado = df.copy()
 if tipos:
     df_filtrado = df_filtrado[df_filtrado['Tipo de Obra'].isin(tipos)]
@@ -174,73 +205,268 @@ if climas:
     df_filtrado = df_filtrado[df_filtrado['Clima'].isin(climas)]
 
 # ============================================
-# MÉTRICAS
+# MÉTRICAS PRINCIPALES CON DISEÑO MEJORADO
 # ============================================
-st.subheader("📊 Métricas Globales")
+st.markdown("""
+<h2 style='color: #2c3e50;'>📊 PANEL DE CONTROL</h2>
+""", unsafe_allow_html=True)
+
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Proyectos", len(df_filtrado))
-col2.metric("Retraso Promedio", f"{df_filtrado['Retraso'].mean():.1f} días")
-col3.metric("Sobrecosto Promedio", f"{df_filtrado['Desviacion_Costo'].mean():.1f}%")
-col4.metric("Proyectos Retrasados", len(df_filtrado[df_filtrado['Retraso'] > 0]))
+
+with col1:
+    st.markdown("""
+    <div style='background-color: #3498db; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>📋 TOTAL</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{}</h1>
+        <p style='color: white; margin: 0;'>Proyectos</p>
+    </div>
+    """.format(len(df_filtrado)), unsafe_allow_html=True)
+
+with col2:
+    retraso_prom = df_filtrado['Retraso'].mean()
+    color_retraso = "#27ae60" if retraso_prom <= 0 else "#e67e22" if retraso_prom <= 30 else "#e74c3c"
+    st.markdown(f"""
+    <div style='background-color: {color_retraso}; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>⏱️ RETRASO</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{retraso_prom:.1f}</h1>
+        <p style='color: white; margin: 0;'>Días promedio</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    sobrecosto_prom = df_filtrado['Desviacion_Costo'].mean()
+    st.markdown(f"""
+    <div style='background-color: #9b59b6; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>💰 SOBRECOSTO</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{sobrecosto_prom:.1f}%</h1>
+        <p style='color: white; margin: 0;'>Promedio</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    proyectos_riesgo = len(df_filtrado[df_filtrado['Retraso'] > 30])
+    st.markdown(f"""
+    <div style='background-color: #e74c3c; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>⚠️ ALERTAS</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{proyectos_riesgo}</h1>
+        <p style='color: white; margin: 0;'>Alto riesgo</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 # ============================================
-# GRÁFICOS
+# GRÁFICOS EN 3D
 # ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>📈 ANÁLISIS VISUAL 3D</h2>
+""", unsafe_allow_html=True)
+
 col1, col2 = st.columns(2)
 
 with col1:
+    st.markdown("##### 🏗️ Retraso por Tipo de Obra (3D)")
     if not df_filtrado.empty:
         retraso_tipo = df_filtrado.groupby('Tipo de Obra')['Retraso'].mean().reset_index()
-        fig1 = px.bar(retraso_tipo, x='Tipo de Obra', y='Retraso', 
-                     title='Retraso Promedio por Tipo de Obra',
-                     color='Retraso', color_continuous_scale='RdYlGn_r')
+        
+        # Gráfico de barras 3D
+        fig1 = go.Figure(data=[
+            go.Bar3d(
+                x=retraso_tipo['Tipo de Obra'],
+                y=[0] * len(retraso_tipo),
+                z=[0] * len(retraso_tipo),
+                dx=0.5,
+                dy=0.5,
+                dz=retraso_tipo['Retraso'],
+                name='Retraso',
+                colorscale='RdYlGn_r',
+                showscale=True,
+                colorbar=dict(title="Días")
+            )
+        ])
+        
+        fig1.update_layout(
+            scene=dict(
+                xaxis_title="Tipo de Obra",
+                yaxis_title="",
+                zaxis_title="Retraso (días)",
+                camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))
+            ),
+            height=400,
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
         st.plotly_chart(fig1, use_container_width=True)
 
 with col2:
+    st.markdown("##### ☁️ Distribución por Clima (3D)")
     if not df_filtrado.empty:
-        clima_retraso = df_filtrado.groupby('Clima')['Retraso'].mean().reset_index()
-        fig2 = px.pie(clima_retraso, values='Retraso', names='Clima',
-                     title='Distribución de Retrasos por Clima')
+        clima_retraso = df_filtrado.groupby('Clima')['Retraso'].sum().reset_index()
+        
+        # Gráfico de pastel 3D (usando scatter3d para simular)
+        fig2 = go.Figure(data=[
+            go.Pie(
+                labels=clima_retraso['Clima'],
+                values=clima_retraso['Retraso'],
+                hole=0.3,
+                marker=dict(colors=px.colors.qualitative.Set3),
+                textinfo='label+percent',
+                textposition='auto',
+                pull=[0.05] * len(clima_retraso)
+            )
+        ])
+        
+        fig2.update_layout(
+            title="Impacto del Clima en Retrasos",
+            height=400,
+            showlegend=True,
+            annotations=[dict(text='Clima', x=0.5, y=0.5, font_size=20, showarrow=False)]
+        )
         st.plotly_chart(fig2, use_container_width=True)
 
-# ============================================
-# GRÁFICOS DE DISPERSIÓN (SIN TRENDLINE)
-# ============================================
-st.subheader("📈 Análisis de Correlación")
-col3, col4 = st.columns(2)
-
-with col3:
-    fig3 = px.scatter(df_filtrado, x='Materiales', y='Retraso', 
-                      color='Tipo de Obra', 
-                      title='Materiales vs Retraso',
-                      opacity=0.7)
-    st.plotly_chart(fig3, use_container_width=True)
-
-with col4:
-    fig4 = px.scatter(df_filtrado, x='Mano_Obra', y='Retraso', 
-                      color='Clima',
-                      title='Mano de Obra vs Retraso',
-                      opacity=0.7)
-    st.plotly_chart(fig4, use_container_width=True)
-
-# ============================================
-# SIMULADOR
-# ============================================
 st.markdown("---")
-st.subheader("🤖 SIMULADOR DE PROYECTOS CON IA")
+
+# ============================================
+# CORRELACIÓN SIMPLIFICADA
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>📊 ANÁLISIS DE CORRELACIÓN (FÁCIL DE ENTENDER)</h2>
+<p style='color: #7f8c8d;'>¿Cómo afectan los recursos a los retrasos?</p>
+""", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("**Configura tu nuevo proyecto:**")
-    tipo_sim = st.selectbox("Tipo de Obra", df['Tipo de Obra'].unique())
-    clima_sim = st.selectbox("Clima", df['Clima'].unique())
-    presupuesto_sim = st.number_input("Presupuesto ($)", value=25000000, step=1000000)
-    duracion_sim = st.number_input("Duración estimada (días)", value=300, step=10)
-    materiales_sim = st.number_input("Materiales (ton)", value=10000, step=500)
-    mano_obra_sim = st.number_input("Mano de obra (horas)", value=50000, step=1000)
+    st.markdown("##### 🔷 Materiales vs Retraso")
     
-    if st.button("🔮 PREDECIR RETRASO", use_container_width=True):
+    # Calcular correlación
+    corr_materiales = df_filtrado['Materiales'].corr(df_filtrado['Retraso'])
+    
+    # Gráfico de dispersión con línea de tendencia
+    fig3 = px.scatter(
+        df_filtrado, 
+        x='Materiales', 
+        y='Retraso', 
+        color='Tipo de Obra',
+        size='Presupuesto',
+        hover_data=['Proyecto ID'],
+        title=f'Correlación: {corr_materiales:.2f}',
+        labels={'Materiales': 'Materiales (ton)', 'Retraso': 'Retraso (días)'}
+    )
+    
+    # Añadir línea de tendencia manual
+    if len(df_filtrado) > 1:
+        z = np.polyfit(df_filtrado['Materiales'], df_filtrado['Retraso'], 1)
+        p = np.poly1d(z)
+        fig3.add_trace(go.Scatter(
+            x=df_filtrado['Materiales'].sort_values(),
+            y=p(df_filtrado['Materiales'].sort_values()),
+            mode='lines',
+            name='Tendencia',
+            line=dict(color='red', dash='dash')
+        ))
+    
+    fig3.update_layout(height=400)
+    st.plotly_chart(fig3, use_container_width=True)
+    
+    # Interpretación simple
+    if abs(corr_materiales) < 0.3:
+        st.info("📌 **Interpretación:** Relación débil - Los materiales no son el factor principal de retrasos")
+    elif abs(corr_materiales) < 0.7:
+        st.warning("📌 **Interpretación:** Relación moderada - Los materiales influyen en los retrasos")
+    else:
+        st.error("📌 **Interpretación:** Relación fuerte - Los materiales son críticos para los retrasos")
+
+with col2:
+    st.markdown("##### 🔶 Mano de Obra vs Retraso")
+    
+    # Calcular correlación
+    corr_mano_obra = df_filtrado['Mano_Obra'].corr(df_filtrado['Retraso'])
+    
+    # Gráfico de dispersión con línea de tendencia
+    fig4 = px.scatter(
+        df_filtrado, 
+        x='Mano_Obra', 
+        y='Retraso', 
+        color='Clima',
+        size='Presupuesto',
+        hover_data=['Proyecto ID'],
+        title=f'Correlación: {corr_mano_obra:.2f}',
+        labels={'Mano_Obra': 'Mano de Obra (horas)', 'Retraso': 'Retraso (días)'}
+    )
+    
+    # Añadir línea de tendencia manual
+    if len(df_filtrado) > 1:
+        z = np.polyfit(df_filtrado['Mano_Obra'], df_filtrado['Retraso'], 1)
+        p = np.poly1d(z)
+        fig4.add_trace(go.Scatter(
+            x=df_filtrado['Mano_Obra'].sort_values(),
+            y=p(df_filtrado['Mano_Obra'].sort_values()),
+            mode='lines',
+            name='Tendencia',
+            line=dict(color='red', dash='dash')
+        ))
+    
+    fig4.update_layout(height=400)
+    st.plotly_chart(fig4, use_container_width=True)
+    
+    # Interpretación simple
+    if abs(corr_mano_obra) < 0.3:
+        st.info("📌 **Interpretación:** Relación débil - La mano de obra no es crítica actualmente")
+    elif abs(corr_mano_obra) < 0.7:
+        st.warning("📌 **Interpretación:** Relación moderada - Optimizar mano de obra puede reducir retrasos")
+    else:
+        st.error("📌 **Interpretación:** Relación fuerte - La mano de obra es clave para cumplir plazos")
+
+st.markdown("---")
+
+# ============================================
+# SIMULADOR DE IA MEJORADO CON GRÁFICAS
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>🤖 SIMULADOR DE ESCENARIOS CON IA</h2>
+<p style='color: #7f8c8d;'>Configura un proyecto y simula diferentes escenarios para optimizar recursos</p>
+""", unsafe_allow_html=True)
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.markdown("""
+    <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px;'>
+        <h4 style='color: #2c3e50;'>📋 PARÁMETROS DEL PROYECTO</h4>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    tipo_sim = st.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique())
+    clima_sim = st.selectbox("☁️ Clima", df['Clima'].unique())
+    
+    st.markdown("##### 💰 Recursos")
+    
+    presupuesto_sim = st.slider("Presupuesto ($)", 
+                                min_value=1_000_000, 
+                                max_value=50_000_000, 
+                                value=25_000_000,
+                                step=1_000_000,
+                                format="$%d")
+    
+    duracion_sim = st.slider("Duración estimada (días)", 
+                             min_value=50, 
+                             max_value=800, 
+                             value=300,
+                             step=10)
+    
+    materiales_sim = st.slider("Materiales (ton)", 
+                               min_value=1000, 
+                               max_value=20000, 
+                               value=10000,
+                               step=500)
+    
+    mano_obra_sim = st.slider("Mano de obra (horas)", 
+                              min_value=5000, 
+                              max_value=100000, 
+                              value=50000,
+                              step=5000)
+    
+    if st.button("🎯 SIMULAR ESCENARIO", use_container_width=True):
         try:
             tipo_cod = le_tipo.transform([tipo_sim])[0]
             clima_cod = le_clima.transform([clima_sim])[0]
@@ -250,37 +476,209 @@ with col1:
             X_sim_scaled = scaler.transform(X_sim)
             
             retraso_pred = modelo.predict(X_sim_scaled)[0]
+            
+            # Guardar resultados en session_state
             st.session_state['retraso_sim'] = retraso_pred
+            st.session_state['parametros_sim'] = {
+                'tipo': tipo_sim,
+                'clima': clima_sim,
+                'presupuesto': presupuesto_sim,
+                'duracion': duracion_sim,
+                'materiales': materiales_sim,
+                'mano_obra': mano_obra_sim
+            }
+            
+            # Generar escenarios alternativos
+            st.session_state['escenarios'] = []
+            
+            # Escenario 1: +20% mano de obra
+            X_alt1 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                               mano_obra_sim * 1.2, tipo_cod, clima_cod]])
+            X_alt1_scaled = scaler.transform(X_alt1)
+            retraso_alt1 = modelo.predict(X_alt1_scaled)[0]
+            
+            # Escenario 2: +20% materiales
+            X_alt2 = np.array([[presupuesto_sim, duracion_sim, materiales_sim * 1.2, 
+                               mano_obra_sim, tipo_cod, clima_cod]])
+            X_alt2_scaled = scaler.transform(X_alt2)
+            retraso_alt2 = modelo.predict(X_alt2_scaled)[0]
+            
+            # Escenario 3: Clima favorable
+            clima_favorable = 'Soleado'
+            clima_fav_cod = le_clima.transform([clima_favorable])[0]
+            X_alt3 = np.array([[presupuesto_sim, duracion_sim, materiales_sim, 
+                               mano_obra_sim, tipo_cod, clima_fav_cod]])
+            X_alt3_scaled = scaler.transform(X_alt3)
+            retraso_alt3 = modelo.predict(X_alt3_scaled)[0]
+            
+            st.session_state['escenarios'] = [
+                {'nombre': 'Escenario Actual', 'retraso': retraso_pred, 'color': '#3498db'},
+                {'nombre': '+20% Mano Obra', 'retraso': retraso_alt1, 'color': '#2ecc71'},
+                {'nombre': '+20% Materiales', 'retraso': retraso_alt2, 'color': '#f39c12'},
+                {'nombre': 'Clima Soleado', 'retraso': retraso_alt3, 'color': '#9b59b6'}
+            ]
+            
         except Exception as e:
-            st.error(f"Error en predicción: {e}")
+            st.error(f"Error en simulación: {e}")
 
 with col2:
     if 'retraso_sim' in st.session_state:
         retraso = st.session_state['retraso_sim']
         
+        # Mostrar resultado principal
         if retraso <= 0:
-            st.success(f"### ✅ Retraso estimado: {retraso:.1f} días")
-            st.balloons()
-            recomendacion = "✅ Proyecto a tiempo. Mantener planificación."
+            st.markdown(f"""
+            <div style='background-color: #27ae60; padding: 20px; border-radius: 10px; text-align: center;'>
+                <h2 style='color: white; margin: 0;'>✅ RESULTADO</h2>
+                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
+                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
+                <p style='color: white; margin: 10px 0 0 0;'>¡Proyecto a tiempo!</p>
+            </div>
+            """, unsafe_allow_html=True)
         elif retraso <= 30:
-            st.warning(f"### ⚠️ Retraso estimado: {retraso:.1f} días")
-            recomendacion = "⚠️ Riesgo moderado. Revisar cronograma semanalmente."
+            st.markdown(f"""
+            <div style='background-color: #f39c12; padding: 20px; border-radius: 10px; text-align: center;'>
+                <h2 style='color: white; margin: 0;'>⚠️ RESULTADO</h2>
+                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
+                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
+                <p style='color: white; margin: 10px 0 0 0;'>Riesgo moderado</p>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.error(f"### 🔴 Retraso estimado: {retraso:.1f} días")
-            recomendacion = "🔴 ALTO RIESGO. Aumentar mano de obra 20%."
+            st.markdown(f"""
+            <div style='background-color: #e74c3c; padding: 20px; border-radius: 10px; text-align: center;'>
+                <h2 style='color: white; margin: 0;'>🔴 RESULTADO</h2>
+                <h1 style='color: white; margin: 0; font-size: 72px;'>{retraso:.1f}</h1>
+                <h3 style='color: white; margin: 0;'>DÍAS DE RETRASO</h3>
+                <p style='color: white; margin: 10px 0 0 0;'>¡ALTO RIESGO!</p>
+            </div>
+            """, unsafe_allow_html=True)
         
-        st.info(f"**Recomendación:** {recomendacion}")
+        st.markdown("---")
+        
+        # Recomendaciones personalizadas
+        st.markdown("##### 💡 RECOMENDACIONES")
+        
+        if retraso > 30:
+            st.error("🔴 **ACCIÓN INMEDIATA REQUERIDA:**")
+            st.markdown("- Aumentar mano de obra en 20%")
+            st.markdown("- Implementar turnos extras")
+            if clima_sim in ['Tormenta', 'Lluvia', 'Viento Fuerte']:
+                st.markdown("- Invertir en protecciones climáticas")
+            st.markdown("- Revisar cadena de suministro de materiales")
+        elif retraso > 0:
+            st.warning("🟡 **ACCIONES PREVENTIVAS:**")
+            st.markdown("- Optimizar logística de materiales")
+            st.markdown("- Reuniones de seguimiento semanales")
+            st.markdown("- Buffer de contingencia del 10%")
+        else:
+            st.success("✅ **PROYECTO ÓPTIMO:**")
+            st.markdown("- Mantener planificación actual")
+            st.markdown("- Documentar mejores prácticas")
+            st.markdown("- Considerar reducir buffer de tiempo")
+        
+        # ============================================
+        # GRÁFICAS DEL SIMULADOR
+        # ============================================
+        if 'escenarios' in st.session_state:
+            st.markdown("---")
+            st.markdown("##### 📊 COMPARATIVA DE ESCENARIOS")
+            
+            # Gráfico de barras comparativo
+            escenarios_df = pd.DataFrame(st.session_state['escenarios'])
+            
+            fig5 = px.bar(
+                escenarios_df,
+                x='nombre',
+                y='retraso',
+                color='nombre',
+                color_discrete_map={e['nombre']: e['color'] for e in st.session_state['escenarios']},
+                title='Impacto de diferentes estrategias',
+                labels={'nombre': 'Escenario', 'retraso': 'Retraso estimado (días)'}
+            )
+            
+            # Línea de referencia en 0
+            fig5.add_hline(y=0, line_dash="dash", line_color="green", 
+                          annotation_text="Límite de retraso cero")
+            
+            fig5.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig5, use_container_width=True)
+            
+            # Gráfico de radar de recursos
+            st.markdown("##### 🎯 OPTIMIZACIÓN DE RECURSOS")
+            
+            # Normalizar valores para radar
+            params_actual = st.session_state['parametros_sim']
+            
+            valores_base = [
+                params_actual['presupuesto'] / 50_000_000 * 100,  # Normalizado a %
+                params_actual['duracion'] / 800 * 100,
+                params_actual['materiales'] / 20000 * 100,
+                params_actual['mano_obra'] / 100000 * 100,
+                max(0, 100 - abs(retraso))  # Eficiencia basada en retraso
+            ]
+            
+            categorias = ['Presupuesto', 'Duración', 'Materiales', 'Mano Obra', 'Eficiencia']
+            
+            fig6 = go.Figure()
+            
+            fig6.add_trace(go.Scatterpolar(
+                r=valores_base,
+                theta=categorias,
+                fill='toself',
+                name='Proyecto Actual',
+                line_color='#3498db'
+            ))
+            
+            fig6.update_layout(
+                polar=dict(
+                    radialaxis=dict(
+                        visible=True,
+                        range=[0, 100]
+                    )),
+                showlegend=True,
+                height=400
+            )
+            
+            st.plotly_chart(fig6, use_container_width=True)
 
 # ============================================
 # TABLA DE DATOS
 # ============================================
 st.markdown("---")
-st.subheader("📋 Datos Históricos")
-st.dataframe(df_filtrado, use_container_width=True)
+st.markdown("""
+<h2 style='color: #2c3e50;'>📋 DATOS HISTÓRICOS</h2>
+""", unsafe_allow_html=True)
 
-if not df_filtrado.empty:
+with st.expander("Ver todos los proyectos", expanded=False):
+    st.dataframe(
+        df_filtrado.style.applymap(
+            lambda x: 'color: red' if isinstance(x, (int, float)) and x > 30 else 
+                     ('color: orange' if isinstance(x, (int, float)) and x > 0 else 'color: green'),
+            subset=['Retraso']
+        ),
+        use_container_width=True,
+        height=400
+    )
+    
+    # Botón de descarga
     csv = df_filtrado.to_csv(index=False)
-    st.download_button("📥 Descargar CSV", csv, "datos_construccion.csv", "text/csv")
+    st.download_button(
+        "📥 Descargar datos en CSV",
+        csv,
+        "datos_construccion.csv",
+        "text/csv",
+        use_container_width=True
+    )
 
+# ============================================
+# FOOTER
+# ============================================
 st.markdown("---")
-st.caption("✅ Dashboard funcionando - Versión sin dependencias extras")
+st.markdown("""
+<div style='text-align: center; color: #7f8c8d; padding: 20px;'>
+    <p>🏗️ <strong>Sistema de Soporte a la Decisión - Gestión de Proyectos de Construcción</strong></p>
+    <p>Modelos: Random Forest (IA) · Análisis de Correlación · Simulación de Escenarios</p>
+    <p>📊 Práctica: Optimización de recursos y minimización de retrasos</p>
+</div>
+""", unsafe_allow_html=True)
