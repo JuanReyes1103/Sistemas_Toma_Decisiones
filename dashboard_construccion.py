@@ -145,6 +145,15 @@ def cargar_datos():
     df['Desviacion_Costo'] = ((df['Costo_Real'] - df['Presupuesto']) / df['Presupuesto']) * 100
     df['Productividad'] = df['Materiales'] / df['Mano_Obra']
     
+    # Clasificación de riesgo basada en % de retraso (estándar PMI)
+    condiciones = [
+        (df['Porcentaje_Retraso'] <= 5),  # Verde: hasta 5% de retraso
+        (df['Porcentaje_Retraso'] > 5) & (df['Porcentaje_Retraso'] <= 15),  # Amarillo: 5-15%
+        (df['Porcentaje_Retraso'] > 15)  # Rojo: más de 15%
+    ]
+    categorias = ['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)']
+    df['Nivel_Riesgo'] = np.select(condiciones, categorias, default='🟡 Riesgo Moderado (5-15%)')
+    
     return df
 
 df = cargar_datos()
@@ -439,7 +448,7 @@ with col_g2:
             names='Clima',
             title='Distribución de proyectos por condición climática',
             color_discrete_sequence=colores_pastel_circular,
-            hole=0.4  # Donut chart (opcional, puedes cambiar a 0 para pastel tradicional)
+            hole=0.4  # Donut chart
         )
         
         fig2.update_traces(
@@ -559,12 +568,9 @@ if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
 else:
     # Mostrar mensaje si no hay datos o falta la columna
     st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
-    
-    # Opcional: mostrar las columnas disponibles para depuración
-    with st.expander("Ver columnas disponibles"):
-        st.write(df_filtrado.columns.tolist() if not df_filtrado.empty else "DataFrame vacío")
+
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE KEY)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CON MEJOR VISIBILIDAD)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -622,29 +628,73 @@ with col_m2:
         tipo_mostrado = st.session_state['tipo_optimizado']
         duracion_mostrada = st.session_state['duracion_optimizada']
         
-        # Mostrar los resultados con formato mejorado
+        # Formatear números para mejor visualización
+        mo_formateada = f"{res['mano_obra_optima']:,.0f}".replace(',', ',')
+        mat_formateada = f"{res['materiales_optimos']:,.0f}".replace(',', ',')
+        costo_formateado = f"{res['costo_minimo']:,.0f}".replace(',', ',')
+        
+        # Mostrar los resultados con fondo blanco y texto oscuro para máxima legibilidad
         st.markdown(f"""
-        <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-left: 5px solid #3498db;'>
-            <h4 style='color: #2c3e50; margin-top: 0;'>✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}</h4>
-            <p style='margin: 5px 0;'><small>Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos</small></p>
-            <hr style='margin: 10px 0; border: 0; border-top: 1px solid #ddd;'>
-            <p style='margin: 10px 0; font-size: 16px;'><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
-            <p style='margin: 10px 0; font-size: 16px;'><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
-            <p style='margin: 10px 0; font-size: 16px;'><strong>💰 Costo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
-            <p style='margin: 10px 0; font-size: 16px;'><strong>📊 Productividad histórica:</strong> {res['productividad']:.3f} ton/hora</p>
-            <hr style='margin: 10px 0; border: 0; border-top: 1px solid #ddd;'>
-            <p style='margin: 10px 0; font-size: 14px; color: #7f8c8d;'><i>📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días promedio</i></p>
+        <div style='background-color: #ffffff; padding: 25px; border-radius: 15px; border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>
+            <h4 style='color: #2c3e50; text-align: center; margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 10px;'>
+                ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}
+            </h4>
+            
+            <p style='margin: 5px 0 15px 0; text-align: center; color: #7f8c8d; font-size: 14px;'>
+                <span style='background-color: #e8f4fd; padding: 3px 10px; border-radius: 20px;'>
+                📊 Basado en {len(df[df['Tipo de Obra']==tipo_mostrado])} proyectos históricos
+                </span>
+            </p>
+            
+            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #3498db;'>
+                    <div style='font-size: 28px; margin-bottom: 5px;'>👷</div>
+                    <div style='font-size: 14px; color: #7f8c8d;'>MANO DE OBRA</div>
+                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{mo_formateada} horas</div>
+                </div>
+                
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #e67e22;'>
+                    <div style='font-size: 28px; margin-bottom: 5px;'>🏗️</div>
+                    <div style='font-size: 14px; color: #7f8c8d;'>MATERIALES</div>
+                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{mat_formateada} ton</div>
+                </div>
+            </div>
+            
+            <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;'>
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #9b59b6;'>
+                    <div style='font-size: 28px; margin-bottom: 5px;'>💰</div>
+                    <div style='font-size: 14px; color: #7f8c8d;'>COSTO</div>
+                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>${costo_formateado}</div>
+                </div>
+                
+                <div style='background-color: #f8f9fa; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #27ae60;'>
+                    <div style='font-size: 28px; margin-bottom: 5px;'>📊</div>
+                    <div style='font-size: 14px; color: #7f8c8d;'>PRODUCTIVIDAD</div>
+                    <div style='font-size: 18px; font-weight: bold; color: #2c3e50;'>{res['productividad']:.3f} t/h</div>
+                </div>
+            </div>
+            
+            <div style='background-color: #e8f4fd; padding: 12px; border-radius: 8px; margin-top: 10px; text-align: center;'>
+                <p style='margin: 0; color: #2c3e50; font-size: 14px;'>
+                    <i>📌 Proyecto de {duracion_mostrada:.0f} días · Referencia histórica: {res['duracion_referencia']:.0f} días</i>
+                </p>
+            </div>
         </div>
         """, unsafe_allow_html=True)
     
     else:
         # Mensaje cuando no hay datos calculados aún
         st.markdown("""
-        <div style='background-color: #f8f9fa; padding: 40px 20px; border-radius: 10px; text-align: center; border: 1px dashed #ddd;'>
-            <h4 style='color: #7f8c8d; margin: 0;'>👈 Configura los parámetros y haz clic en "CALCULAR"</h4>
-            <p style='color: #95a5a6; margin: 10px 0 0 0;'>Los resultados aparecerán aquí</p>
+        <div style='background-color: #f8f9fa; padding: 60px 20px; border-radius: 15px; text-align: center; border: 2px dashed #bdc3c7;'>
+            <h3 style='color: #7f8c8d; margin: 0; font-size: 24px;'>📐 OPTIMIZADOR LISTO</h3>
+            <p style='color: #95a5a6; margin: 15px 0 0 0; font-size: 16px;'>
+                👈 Configura los parámetros y haz clic en "CALCULAR"<br>
+                <span style='font-size: 14px;'>Los resultados aparecerán aquí con todos los detalles</span>
+            </p>
         </div>
         """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 # ============================================
 # SIMULADOR DE IA (BASADO EN % DE RETRASO)
@@ -764,7 +814,7 @@ if 'simulacion_alertas' in st.session_state and 'simulacion_porcentaje' in st.se
         <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
             <h4 style='color: #2c3e50; margin-top: 0;'>📋 INTERPRETACIÓN PMI</h4>
             <p><strong>SPI equivalente:</strong> {100/(100+porcentaje):.2f}</p>
-            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*st.session_state.get('duracion_sim', 300):.1f} días</p>
+            <p><strong>Días de retraso estimados:</strong> {(porcentaje/100)*duracion_sim:.1f} días</p>
             <p><small>*Basado en estándares del Project Management Institute</small></p>
         </div>
         """, unsafe_allow_html=True)
@@ -778,6 +828,8 @@ if 'simulacion_alertas' in st.session_state and 'simulacion_porcentaje' in st.se
             st.warning(f"**{tipo}:** {mensaje}")
         elif "🟢" in tipo:
             st.success(f"**{tipo}:** {mensaje}")
+
+st.markdown("---")
 
 # ============================================
 # TABLA DE DATOS CON MÉTRICAS PMI
