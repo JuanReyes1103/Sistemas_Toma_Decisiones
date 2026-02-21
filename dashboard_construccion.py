@@ -570,7 +570,7 @@ else:
     st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - TEXTO LEGIBLE)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -629,11 +629,11 @@ with col_m2:
         duracion_mostrada = st.session_state['duracion_optimizada']
         
         # Formatear números para mejor visualización
-        mo_formateada = f"{res['mano_obra_optima']:,.0f}".replace(',', ',')
-        mat_formateada = f"{res['materiales_optimos']:,.0f}".replace(',', ',')
-        costo_formateado = f"{res['costo_minimo']:,.0f}".replace(',', ',')
+        mo_formateada = f"{res['mano_obra_optima']:,.0f}"
+        mat_formateada = f"{res['materiales_optimos']:,.0f}"
+        costo_formateado = f"{res['costo_minimo']:,.0f}"
         
-        # Mostrar los resultados con fondo blanco y texto negro legible
+        # Mostrar los resultados con fondo blanco y texto negro legible - CON f-STRING CORRECTO
         st.markdown(f"""
         <div style='background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
             <h4 style='color: #2c3e50; text-align: center; margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #3498db; padding-bottom: 10px;'>
