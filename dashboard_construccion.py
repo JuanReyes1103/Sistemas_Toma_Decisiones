@@ -439,7 +439,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - SIN ERROR DE SESSION STATE)
+# MODELO MATEMÁTICO - OPTIMIZADOR (CORREGIDO - TEXTO VISIBLE)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📐 MODELO MATEMÁTICO - OPTIMIZACIÓN DE RECURSOS</h2>
@@ -465,17 +465,39 @@ with col_m2:
     if 'resultado_optimizacion' in st.session_state:
         res = st.session_state['resultado_optimizacion']
         tipo_mostrado = st.session_state['tipo_optimizado']
+        
+        # Tarjeta con texto OSCURO sobre fondo CLARO para máxima legibilidad
         st.markdown(f"""
-        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #ddd;'>
-            <h4 style='color: #2c3e50;'>✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}</h4>
-            <p><strong>👷 Mano de obra óptima:</strong> {res['mano_obra_optima']:,.0f} horas</p>
-            <p><strong>🏗️ Materiales óptimos:</strong> {res['materiales_optimos']:,.0f} ton</p>
-            <p><strong>💰 Costo mínimo estimado:</strong> ${res['costo_minimo']:,.0f}</p>
-            <p><strong>📊 Productividad óptima:</strong> {res['productividad']:.3f} ton/hora</p>
+        <div style='background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
+            <h4 style='color: #2c3e50; text-align: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #3498db;'>
+                ✅ RECURSOS ÓPTIMOS PARA {tipo_mostrado}
+            </h4>
+            
+            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
+                <span style='font-size: 24px; margin-right: 10px;'>👷</span> 
+                <strong style='min-width: 140px;'>Mano de obra:</strong> 
+                <span style='font-weight: bold; color: #2c3e50;'>{res['mano_obra_optima']:,.0f} horas</span>
+            </p>
+            
+            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
+                <span style='font-size: 24px; margin-right: 10px;'>🏗️</span> 
+                <strong style='min-width: 140px;'>Materiales:</strong> 
+                <span style='font-weight: bold; color: #2c3e50;'>{res['materiales_optimos']:,.0f} ton</span>
+            </p>
+            
+            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
+                <span style='font-size: 24px; margin-right: 10px;'>💰</span> 
+                <strong style='min-width: 140px;'>Costo mínimo:</strong> 
+                <span style='font-weight: bold; color: #2c3e50;'>${res['costo_minimo']:,.0f}</span>
+            </p>
+            
+            <p style='margin: 10px 0; font-size: 16px; color: #2c3e50; display: flex; align-items: center;'>
+                <span style='font-size: 24px; margin-right: 10px;'>📊</span> 
+                <strong style='min-width: 140px;'>Productividad:</strong> 
+                <span style='font-weight: bold; color: #2c3e50;'>{res['productividad']:.3f} ton/hora</span>
+            </p>
         </div>
         """, unsafe_allow_html=True)
-
-st.markdown("---")
 
 # ============================================
 # SIMULADOR DE IA
