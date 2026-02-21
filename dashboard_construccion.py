@@ -685,153 +685,293 @@ else:
     st.info("No hay proyectos en el filtro actual o selecciona otros filtros")
 
 # ============================================
-# DIAGRAMA DE GANTT - CRONOGRAMA DE PROYECTOS
+# CRONOGRAMA INTERACTIVO - DISEÑO MODERNO
 # ============================================
 st.markdown("""
-<h2 style='color: #2c3e50;'>📅 CRONOGRAMA DE PROYECTOS (GANTT)</h2>
-<p style='color: #7f8c8d;'>Visualización de la duración y estado de cada proyecto</p>
+<h2 style='color: #2c3e50;'>📅 CRONOGRAMA INTERACTIVO DE PROYECTOS</h2>
+<p style='color: #7f8c8d;'>Visualización moderna de la línea de tiempo y estado de cada proyecto</p>
 """, unsafe_allow_html=True)
 
 if not df_filtrado.empty:
-    # Preparar datos para el Gantt
-    df_gantt = df_filtrado.copy()
-    
-    # Convertir duración a fechas (usando un año base para visualización)
-    # Esto es necesario porque tenemos duración en días, no fechas reales
     import datetime
-    
-    # Usar una fecha de inicio base (ejemplo: 1 de enero de 2024)
     fecha_base = datetime.date(2024, 1, 1)
     
-    # Calcular fechas de inicio y fin basadas en la duración
-    df_gantt['Start'] = df_gantt.apply(
-        lambda row: (fecha_base + datetime.timedelta(days=0)).strftime('%Y-%m-%d'), 
-        axis=1
-    )
-    df_gantt['Finish'] = df_gantt.apply(
-        lambda row: (fecha_base + datetime.timedelta(days=row['Duracion_Estimada'])).strftime('%Y-%m-%d'), 
+    # Preparar datos con formato mejorado
+    df_gantt = df_filtrado.copy().head(15)  # Mostrar solo 15 para mejor visualización
+    df_gantt['Start'] = fecha_base
+    df_gantt['Finish_Estimado'] = df_gantt.apply(
+        lambda row: fecha_base + datetime.timedelta(days=row['Duracion_Estimada']), 
         axis=1
     )
     df_gantt['Finish_Real'] = df_gantt.apply(
-        lambda row: (fecha_base + datetime.timedelta(days=row['Duracion_Real'])).strftime('%Y-%m-%d'), 
+        lambda row: fecha_base + datetime.timedelta(days=row['Duracion_Real']), 
         axis=1
     )
     
-    # Crear selector para elegir qué ver
-    vista_gantt = st.radio(
-        "Ver:",
-        ["Duración Estimada", "Duración Real", "Comparación"],
-        horizontal=True
+    # Crear nombre corto para el eje Y
+    df_gantt['Proyecto'] = df_gantt.apply(
+        lambda row: f"P{int(row['Proyecto ID'])}: {row['Tipo de Obra'][:10]}", 
+        axis=1
     )
     
-    if vista_gantt == "Duración Estimada":
-        # Gantt de duración estimada
-        fig_gantt = px.timeline(
-            df_gantt,
-            x_start="Start",
-            x_end="Finish",
-            y="Tipo de Obra",
-            color="Tipo de Obra",
-            hover_data={
-                'Proyecto ID': True,
-                'Duracion_Estimada': True,
-                'Clima': True
+    # Selector de vista con diseño de tarjetas
+    vista_crono = st.radio(
+        "Selecciona vista:",
+        ["📊 Vista Comparativa", "🎯 Vista por Riesgo", "📈 Vista Temporal"],
+        horizontal=True,
+        help="Elige cómo quieres visualizar los proyectos"
+    )
+    
+    if vista_crono == "📊 Vista Comparativa":
+        # Gráfico de barras horizontales con efecto 3D
+        fig = go.Figure()
+        
+        for i, row in df_gantt.iterrows():
+            # Barra estimada (con transparencia)
+            fig.add_trace(go.Bar(
+                y=[row['Proyecto']],
+                x=[row['Duracion_Estimada']],
+                name=f"{row['Proyecto']} (Estimado)",
+                orientation='h',
+                marker=dict(
+                    color='rgba(52, 152, 219, 0.5)',
+                    line=dict(color='rgba(52, 152, 219, 1)', width=2)
+                ),
+                text=f"Estimado: {row['Duracion_Estimada']}d",
+                textposition='inside',
+                insidetextanchor='start',
+                hoverinfo='text',
+                hovertext=f"<b>{row['Tipo de Obra']}</b><br>Estimado: {row['Duracion_Estimada']} días<br>Clima: {row['Clima']}"
+            ))
+            
+            # Barra real (con color según retraso)
+            if row['Porcentaje_Retraso'] <= 5:
+                color_real = 'rgba(46, 204, 113, 0.9)'
+            elif row['Porcentaje_Retraso'] <= 15:
+                color_real = 'rgba(241, 196, 15, 0.9)'
+            else:
+                color_real = 'rgba(231, 76, 60, 0.9)'
+            
+            fig.add_trace(go.Bar(
+                y=[row['Proyecto']],
+                x=[row['Duracion_Real']],
+                name=f"{row['Proyecto']} (Real)",
+                orientation='h',
+                marker=dict(
+                    color=color_real,
+                    line=dict(color='white', width=1)
+                ),
+                text=f"Real: {row['Duracion_Real']}d ({row['Porcentaje_Retraso']:+.1f}%)",
+                textposition='outside',
+                hoverinfo='text',
+                hovertext=f"<b>{row['Tipo de Obra']}</b><br>Real: {row['Duracion_Real']} días<br>Retraso: {row['Porcentaje_Retraso']:.1f}%<br>SPI: {row['SPI']:.2f}"
+            ))
+        
+        fig.update_layout(
+            title={
+                'text': "⏱️ Comparación Estimado vs Real",
+                'y':0.95,
+                'x':0.5,
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': dict(size=20, color='#2c3e50')
             },
-            title="Duración Estimada por Tipo de Obra",
-            labels={"Tipo de Obra": "Tipo de Proyecto", "Start": "Inicio", "Finish": "Fin"}
+            xaxis_title="Días de duración",
+            yaxis_title="",
+            barmode='overlay',
+            height=600,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(family="Arial", size=12),
+            margin=dict(l=150, r=20, t=80, b=40),
+            showlegend=False,
+            xaxis=dict(
+                gridcolor='lightgray',
+                gridwidth=1,
+                zerolinecolor='lightgray'
+            )
         )
         
-    elif vista_gantt == "Duración Real":
-        # Gantt de duración real
-        fig_gantt = px.timeline(
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Leyenda personalizada
+        col_l1, col_l2, col_l3, col_l4 = st.columns(4)
+        with col_l1:
+            st.markdown("🔷 <span style='color:#3498db'>■</span> **Estimado**", unsafe_allow_html=True)
+        with col_l2:
+            st.markdown("🟢 <span style='color:#27ae60'>■</span> **Real (Controlado)**", unsafe_allow_html=True)
+        with col_l3:
+            st.markdown("🟡 <span style='color:#f39c12'>■</span> **Real (Riesgo)**", unsafe_allow_html=True)
+        with col_l4:
+            st.markdown("🔴 <span style='color:#e74c3c'>■</span> **Real (Crítico)**", unsafe_allow_html=True)
+    
+    elif vista_crono == "🎯 Vista por Riesgo":
+        # Gráfico de burbujas (bubble chart) - más moderno
+        fig = px.scatter(
             df_gantt,
-            x_start="Start",
-            x_end="Finish_Real",
-            y="Tipo de Obra",
-            color="Nivel_Riesgo" if 'Nivel_Riesgo' in df_gantt.columns else "Tipo de Obra",
+            x='Duracion_Estimada',
+            y='Duracion_Real',
+            size='Presupuesto',
+            color='Nivel_Riesgo',
+            hover_data=['Proyecto ID', 'Tipo de Obra', 'Clima', 'Porcentaje_Retraso'],
+            text='Proyecto',
             color_discrete_map={
                 '🟢 Controlado (0-5%)': '#27ae60',
                 '🟡 Riesgo Moderado (5-15%)': '#f39c12',
                 '🔴 Crítico (>15%)': '#e74c3c'
-            } if 'Nivel_Riesgo' in df_gantt.columns else None,
-            hover_data={
-                'Proyecto ID': True,
-                'Duracion_Real': True,
-                'Porcentaje_Retraso': ':.1f',
-                'Clima': True
             },
-            title="Duración Real por Tipo de Obra (coloreado por riesgo)",
-            labels={"Tipo de Obra": "Tipo de Proyecto", "Start": "Inicio", "Finish_Real": "Fin Real"}
+            title="🎯 Mapa de Riesgo: Duración Estimada vs Real",
+            labels={
+                'Duracion_Estimada': 'Duración Estimada (días)',
+                'Duracion_Real': 'Duración Real (días)',
+                'Presupuesto': 'Presupuesto ($)'
+            }
         )
         
-    else:  # Comparación
-        # Crear figura con dos trazas: estimada y real
-        fig_gantt = go.Figure()
+        # Línea de referencia (y=x)
+        max_val = max(df_gantt['Duracion_Estimada'].max(), df_gantt['Duracion_Real'].max())
+        fig.add_trace(go.Scatter(
+            x=[0, max_val],
+            y=[0, max_val],
+            mode='lines',
+            name='Perfecto (y=x)',
+            line=dict(color='gray', dash='dash', width=1)
+        ))
         
-        # Ordenar para que no se empalmen
-        df_gantt = df_gantt.sort_values('Duracion_Estimada', ascending=False).head(20)  # Top 20 para no saturar
+        fig.update_traces(
+            textposition='top center',
+            marker=dict(size=20, line=dict(width=2, color='white'))
+        )
+        
+        fig.update_layout(
+            height=600,
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(family="Arial", size=12),
+            xaxis=dict(gridcolor='lightgray'),
+            yaxis=dict(gridcolor='lightgray')
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Tarjetas de resumen
+        st.markdown("### 📊 Resumen por Nivel de Riesgo")
+        col_r1, col_r2, col_r3 = st.columns(3)
+        
+        for riesgo, color in [('🟢 Controlado', '#27ae60'), ('🟡 Riesgo Moderado', '#f39c12'), ('🔴 Crítico', '#e74c3c')]:
+            df_riesgo = df_gantt[df_gantt['Nivel_Riesgo'].str.contains(riesgo[2:])]
+            if not df_riesgo.empty:
+                with eval(f"col_r{['1','2','3'][['Controlado','Riesgo','Crítico'].index(riesgo.split()[1])]}"):
+                    st.markdown(f"""
+                    <div style='background-color: {color}20; padding: 15px; border-radius: 10px; border-left: 5px solid {color};'>
+                        <h4 style='color: {color}; margin: 0;'>{riesgo}</h4>
+                        <p style='margin: 5px 0; font-size: 24px; font-weight: bold;'>{len(df_riesgo)}</p>
+                        <p style='margin: 0; color: #7f8c8d;'>proyectos</p>
+                        <p style='margin: 5px 0 0 0;'><small>Retraso prom: {df_riesgo['Porcentaje_Retraso'].mean():.1f}%</small></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+    else:  # 📈 Vista Temporal
+        # Timeline con colores degradados
+        fig = go.Figure()
         
         for i, row in df_gantt.iterrows():
-            # Barra estimada (más clara)
-            fig_gantt.add_trace(go.Bar(
-                name=f"Proyecto {int(row['Proyecto ID'])} - Estimado",
-                x=[row['Duracion_Estimada']],
-                y=[f"P{int(row['Proyecto ID'])}: {row['Tipo de Obra']}"],
-                orientation='h',
-                marker=dict(color='#3498db', opacity=0.5),
-                hovertemplate=f"Estimado: {row['Duracion_Estimada']} días<br>Clima: {row['Clima']}<extra></extra>"
+            # Crear efecto degradado basado en retraso
+            if row['Porcentaje_Retraso'] <= 5:
+                color = '#27ae60'
+            elif row['Porcentaje_Retraso'] <= 15:
+                color = '#f39c12'
+            else:
+                color = '#e74c3c'
+            
+            # Línea de tiempo con marcadores
+            fig.add_trace(go.Scatter(
+                x=[row['Start'], row['Finish_Real']],
+                y=[row['Proyecto'], row['Proyecto']],
+                mode='lines+markers',
+                line=dict(color=color, width=4),
+                marker=dict(
+                    size=[10, 15],
+                    color=[color, color],
+                    symbol=['circle', 'diamond'],
+                    line=dict(width=2, color='white')
+                ),
+                name=row['Proyecto'],
+                text=f"Inicio: {row['Start'].strftime('%d/%m')}<br>Fin: {row['Finish_Real'].strftime('%d/%m')}<br>Duración: {row['Duracion_Real']} días",
+                hoverinfo='text',
+                showlegend=False
             ))
             
-            # Barra real (más oscura)
-            fig_gantt.add_trace(go.Bar(
-                name=f"Proyecto {int(row['Proyecto ID'])} - Real",
-                x=[row['Duracion_Real']],
-                y=[f"P{int(row['Proyecto ID'])}: {row['Tipo de Obra']}"],
-                orientation='h',
-                marker=dict(
-                    color='#e74c3c' if row['Porcentaje_Retraso'] > 15 else '#f39c12' if row['Porcentaje_Retraso'] > 5 else '#27ae60',
-                    opacity=0.8
-                ),
-                hovertemplate=f"Real: {row['Duracion_Real']} días<br>Retraso: {row['Porcentaje_Retraso']:.1f}%<extra></extra>"
-            ))
+            # Agregar anotación de retraso
+            if row['Porcentaje_Retraso'] > 5:
+                fig.add_annotation(
+                    x=row['Finish_Real'],
+                    y=row['Proyecto'],
+                    text=f"{row['Porcentaje_Retraso']:+.1f}%",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1,
+                    arrowwidth=2,
+                    arrowcolor=color,
+                    ax=40,
+                    ay=0,
+                    font=dict(size=10, color=color)
+                )
         
-        fig_gantt.update_layout(
-            title="Comparación: Duración Estimada vs Real (Top 20 proyectos)",
-            xaxis_title="Días",
-            yaxis_title="Proyecto",
-            barmode='overlay',
+        fig.update_layout(
+            title={
+                'text': "📈 Línea de Tiempo Interactiva",
+                'y':0.95,
+                'x':0.5,
+                'font': dict(size=20, color='#2c3e50')
+            },
+            xaxis_title="Fecha (2024)",
+            yaxis_title="",
             height=600,
-            showlegend=False
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            xaxis=dict(
+                tickformat='%d %b',
+                gridcolor='lightgray',
+                tickangle=-45
+            ),
+            margin=dict(l=150, r=20, t=80, b=60)
         )
-        st.plotly_chart(fig_gantt, use_container_width=True)
-        st.caption("🔵 Barra clara: Duración estimada | 🎨 Barra oscura: Duración real (verde=controlado, amarillo=riesgo, rojo=crítico)")
-        st.markdown("---")
-        # No continuar con el otro gráfico
-        st.stop()
-    
-    # Configuración común para los primeros dos modos
-    if vista_gantt != "Comparación":
-        fig_gantt.update_yaxes(autorange="reversed")  # Para que los proyectos aparezcan de arriba a abajo
-        fig_gantt.update_layout(
-            height=500,
-            xaxis_title="Fecha",
-            yaxis_title="Tipo de Proyecto",
-            showlegend=False
-        )
-        st.plotly_chart(fig_gantt, use_container_width=True)
         
-        # Mostrar tabla resumen
-        with st.expander("Ver detalles de los proyectos en el Gantt"):
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Línea de tiempo compacta
+        st.markdown("### ⏰ Escala de Tiempo")
+        st.markdown("""
+        <div style='display: flex; justify-content: space-between; padding: 10px; background: linear-gradient(90deg, #27ae60 0%, #f39c12 50%, #e74c3c 100%); border-radius: 10px;'>
+            <span style='color: white; font-weight: bold;'>Controlado</span>
+            <span style='color: white; font-weight: bold;'>Riesgo Moderado</span>
+            <span style='color: white; font-weight: bold;'>Crítico</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Tabla de resumen interactiva
+    with st.expander("📋 Ver detalles de los proyectos", expanded=False):
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
             st.dataframe(
                 df_gantt[['Proyecto ID', 'Tipo de Obra', 'Duracion_Estimada', 'Duracion_Real', 
-                         'Porcentaje_Retraso', 'Nivel_Riesgo']].head(15),
+                         'Porcentaje_Retraso', 'SPI', 'Nivel_Riesgo', 'Clima']].style.applymap(
+                    lambda x: 'color: red' if isinstance(x, float) and x > 15 else 
+                             ('color: orange' if isinstance(x, float) and x > 5 else 'color: green'),
+                    subset=['Porcentaje_Retraso']
+                ),
                 use_container_width=True
             )
+        with col_t2:
+            st.metric("Total proyectos", len(df_gantt))
+            st.metric("Duración promedio", f"{df_gantt['Duracion_Real'].mean():.0f} días")
+            st.metric("Retraso promedio", f"{df_gantt['Porcentaje_Retraso'].mean():.1f}%")
+
 else:
-    st.info("Selecciona filtros para ver el cronograma")
+    st.warning("👈 Selecciona filtros en la barra lateral para ver el cronograma")
 
 st.markdown("---")
-
 # ============================================
 # MODELO MATEMÁTICO - OPTIMIZADOR (VERSIÓN SIMPLE QUE SÍ FUNCIONA)
 # ============================================
