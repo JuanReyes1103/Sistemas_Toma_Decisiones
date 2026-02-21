@@ -472,6 +472,110 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
+# GRÁFICAS DE CORRELACIÓN (MATERIALES Y MANO DE OBRA)
+# ============================================
+st.markdown("""
+<h2 style='color: #2c3e50;'>📊 ANÁLISIS DE CORRELACIÓN</h2>
+<p style='color: #7f8c8d;'>¿Cómo afectan los recursos a los retrasos?</p>
+""", unsafe_allow_html=True)
+
+col_c1, col_c2 = st.columns(2)
+
+with col_c1:
+    st.markdown("##### 🔷 Materiales vs Retraso")
+    
+    if not df_filtrado.empty and len(df_filtrado) > 1:
+        corr_materiales = df_filtrado['Materiales'].corr(df_filtrado['Porcentaje_Retraso'])
+        
+        fig_c1 = px.scatter(
+            df_filtrado, 
+            x='Materiales', 
+            y='Porcentaje_Retraso', 
+            color='Tipo de Obra',
+            size='Presupuesto',
+            hover_data=['Proyecto ID'],
+            title=f'Correlación: {corr_materiales:.2f}',
+            labels={'Materiales': 'Materiales (ton)', 'Porcentaje_Retraso': 'Retraso (%)'},
+            opacity=0.7
+        )
+        
+        # Línea de tendencia
+        z = np.polyfit(df_filtrado['Materiales'], df_filtrado['Porcentaje_Retraso'], 1)
+        p = np.poly1d(z)
+        fig_c1.add_trace(go.Scatter(
+            x=df_filtrado['Materiales'].sort_values(),
+            y=p(df_filtrado['Materiales'].sort_values()),
+            mode='lines',
+            name='Tendencia',
+            line=dict(color='red', width=2)
+        ))
+        
+        # Líneas de umbral
+        fig_c1.add_hline(y=5, line_dash="dash", line_color="green", opacity=0.5)
+        fig_c1.add_hline(y=15, line_dash="dash", line_color="red", opacity=0.5)
+        
+        fig_c1.update_layout(height=400)
+        st.plotly_chart(fig_c1, use_container_width=True)
+        
+        # Interpretación
+        if abs(corr_materiales) < 0.3:
+            st.info("📌 **Interpretación:** Relación débil - Los materiales no son el factor principal")
+        elif abs(corr_materiales) < 0.7:
+            st.warning("📌 **Interpretación:** Relación moderada - Los materiales influyen en retrasos")
+        else:
+            st.error("📌 **Interpretación:** Relación fuerte - Los materiales son críticos")
+    else:
+        st.info("No hay suficientes datos para mostrar correlación")
+
+with col_c2:
+    st.markdown("##### 🔶 Mano de Obra vs Retraso")
+    
+    if not df_filtrado.empty and len(df_filtrado) > 1:
+        corr_mano_obra = df_filtrado['Mano_Obra'].corr(df_filtrado['Porcentaje_Retraso'])
+        
+        fig_c2 = px.scatter(
+            df_filtrado, 
+            x='Mano_Obra', 
+            y='Porcentaje_Retraso', 
+            color='Clima',
+            size='Presupuesto',
+            hover_data=['Proyecto ID'],
+            title=f'Correlación: {corr_mano_obra:.2f}',
+            labels={'Mano_Obra': 'Mano de Obra (horas)', 'Porcentaje_Retraso': 'Retraso (%)'},
+            opacity=0.7
+        )
+        
+        # Línea de tendencia
+        z = np.polyfit(df_filtrado['Mano_Obra'], df_filtrado['Porcentaje_Retraso'], 1)
+        p = np.poly1d(z)
+        fig_c2.add_trace(go.Scatter(
+            x=df_filtrado['Mano_Obra'].sort_values(),
+            y=p(df_filtrado['Mano_Obra'].sort_values()),
+            mode='lines',
+            name='Tendencia',
+            line=dict(color='red', width=2)
+        ))
+        
+        # Líneas de umbral
+        fig_c2.add_hline(y=5, line_dash="dash", line_color="green", opacity=0.5)
+        fig_c2.add_hline(y=15, line_dash="dash", line_color="red", opacity=0.5)
+        
+        fig_c2.update_layout(height=400)
+        st.plotly_chart(fig_c2, use_container_width=True)
+        
+        # Interpretación
+        if abs(corr_mano_obra) < 0.3:
+            st.info("📌 **Interpretación:** Relación débil - La mano de obra no es crítica")
+        elif abs(corr_mano_obra) < 0.7:
+            st.warning("📌 **Interpretación:** Relación moderada - Optimizar mano de obra ayuda")
+        else:
+            st.error("📌 **Interpretación:** Relación fuerte - La mano de obra es clave")
+    else:
+        st.info("No hay suficientes datos para mostrar correlación")
+
+st.markdown("---")
+
+# ============================================
 # GRÁFICAS ADICIONALES DE RIESGO (CORREGIDO - SIN ERROR DE KEY)
 # ============================================
 st.markdown("##### 🌍 Análisis de Niveles de Riesgo")
