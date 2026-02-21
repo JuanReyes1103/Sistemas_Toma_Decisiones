@@ -685,7 +685,7 @@ else:
     st.info("No hay proyectos en el filtro actual o selecciona otros filtros")
 
 # ============================================
-# CRONOGRAMA INTERACTIVO - DISEÑO MODERNO
+# CRONOGRAMA INTERACTIVO - DISEÑO MODERNO (SIN FONDO BLANCO)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📅 CRONOGRAMA INTERACTIVO DE PROYECTOS</h2>
@@ -780,8 +780,8 @@ if not df_filtrado.empty:
             yaxis_title="",
             barmode='overlay',
             height=600,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Arial", size=12),
             margin=dict(l=150, r=20, t=80, b=40),
             showlegend=False,
@@ -845,8 +845,8 @@ if not df_filtrado.empty:
         
         fig.update_layout(
             height=600,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             font=dict(family="Arial", size=12),
             xaxis=dict(gridcolor='lightgray'),
             yaxis=dict(gridcolor='lightgray')
@@ -858,10 +858,14 @@ if not df_filtrado.empty:
         st.markdown("### 📊 Resumen por Nivel de Riesgo")
         col_r1, col_r2, col_r3 = st.columns(3)
         
-        for riesgo, color in [('🟢 Controlado', '#27ae60'), ('🟡 Riesgo Moderado', '#f39c12'), ('🔴 Crítico', '#e74c3c')]:
-            df_riesgo = df_gantt[df_gantt['Nivel_Riesgo'].str.contains(riesgo[2:])]
+        for riesgo, color, col in zip(
+            ['🟢 Controlado', '🟡 Riesgo Moderado', '🔴 Crítico'],
+            ['#27ae60', '#f39c12', '#e74c3c'],
+            [col_r1, col_r2, col_r3]
+        ):
+            df_riesgo = df_gantt[df_gantt['Nivel_Riesgo'].str.contains(riesgo.split()[1])]
             if not df_riesgo.empty:
-                with eval(f"col_r{['1','2','3'][['Controlado','Riesgo','Crítico'].index(riesgo.split()[1])]}"):
+                with col:
                     st.markdown(f"""
                     <div style='background-color: {color}20; padding: 15px; border-radius: 10px; border-left: 5px solid {color};'>
                         <h4 style='color: {color}; margin: 0;'>{riesgo}</h4>
@@ -928,8 +932,8 @@ if not df_filtrado.empty:
             xaxis_title="Fecha (2024)",
             yaxis_title="",
             height=600,
-            plot_bgcolor='white',
-            paper_bgcolor='white',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(
                 tickformat='%d %b',
                 gridcolor='lightgray',
