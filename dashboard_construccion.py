@@ -183,7 +183,15 @@ def entrenar_modelos_ia():
     )
     modelo_retraso.fit(X_train, y_train)
     
-    # 2. MODELO PARA PREDECIR MATERIALES ÓPTIMOS
+    # 2. MODELO PARA PREDECIR RIESGO
+    modelo_riesgo = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=10,
+        random_state=42
+    )
+    modelo_riesgo.fit(X_train, y_train.apply(lambda x: 0 if x <= 0 else (1 if x <= 30 else 2)))
+    
+    # 3. MODELO PARA PREDECIR MATERIALES ÓPTIMOS
     modelo_materiales = RandomForestRegressor(
         n_estimators=200,
         max_depth=15,
@@ -191,9 +199,9 @@ def entrenar_modelos_ia():
     )
     modelo_materiales.fit(X_train, df_modelo.loc[y_train.index, 'Materiales'])
     
-    return modelo_retraso, modelo_materiales, scaler, le_tipo, le_clima
+    return modelo_retraso, modelo_riesgo, modelo_materiales, scaler, le_tipo, le_clima
 
-modelo_retraso, modelo_materiales, scaler, le_tipo, le_clima = entrenar_modelos_ia()
+modelo_retraso, modelo_riesgo, modelo_materiales, scaler, le_tipo, le_clima = entrenar_modelos_ia()
 
 # ============================================
 # SISTEMA DE ALERTAS
@@ -210,6 +218,7 @@ def generar_alertas(tipo, clima, presupuesto, duracion, materiales_actuales, man
     
     # Predecir
     retraso_pred = modelo_retraso.predict(X_scaled)[0]
+    riesgo_pred = modelo_riesgo.predict(X_scaled)[0]
     materiales_optimos = modelo_materiales.predict(X_scaled)[0]
     
     # ALERTA 1: Retraso
@@ -249,13 +258,13 @@ def generar_alertas(tipo, clima, presupuesto, duracion, materiales_actuales, man
     elif dias_restantes < duracion * 0.5:
         alertas.append(f"🟡 Necesitarás reabastecer en {dias_restantes:.0f} días")
     
-    return alertas, retraso_pred, materiales_optimos
+    return alertas, retraso_pred, materiales_optimos, diff_materiales
 
 # ============================================
-# SIDEBAR - FILTROS Y NUEVO PROYECTO
+# SIDEBAR - SOLO FILTROS
 # ============================================
 st.sidebar.markdown("""
-<h2 style='text-align: center; color: #2c3e50;'>🔍 FILTROS</h2>
+<h2 style='text-align: center; color: #3498db;'>🔍 FILTROS</h2>
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
@@ -272,59 +281,6 @@ climas = st.sidebar.multiselect(
     help="Selecciona condiciones climáticas"
 )
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("""
-<h2 style='text-align: center; color: #e67e22;'>🤖 NUEVO PROYECTO</h2>
-""", unsafe_allow_html=True)
-
-tipo_nuevo = st.sidebar.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique(), key='tipo_nuevo')
-clima_nuevo = st.sidebar.selectbox("☁️ Clima esperado", df['Clima'].unique(), key='clima_nuevo')
-
-st.sidebar.markdown("##### 💰 Recursos planeados:")
-
-presupuesto_nuevo = st.sidebar.number_input("Presupuesto ($)", 
-                                           min_value=1_000_000, 
-                                           max_value=50_000_000, 
-                                           value=25_000_000,
-                                           step=1_000_000,
-                                           format="%d")
-
-duracion_nuevo = st.sidebar.number_input("Duración planeada (días)", 
-                                        min_value=50, 
-                                        max_value=800, 
-                                        value=300,
-                                        step=10)
-
-materiales_nuevo = st.sidebar.number_input("Materiales disponibles (ton)", 
-                                          min_value=1000, 
-                                          max_value=30000, 
-                                          value=10000,
-                                          step=500)
-
-mano_obra_nuevo = st.sidebar.number_input("Mano de obra (horas)", 
-                                         min_value=5000, 
-                                         max_value=200000, 
-                                         value=50000,
-                                         step=5000)
-
-if st.sidebar.button("🎯 ANALIZAR CON IA", use_container_width=True):
-    alertas, retraso_pred, materiales_optimos = generar_alertas(
-        tipo_nuevo, clima_nuevo, presupuesto_nuevo, duracion_nuevo, 
-        materiales_nuevo, mano_obra_nuevo
-    )
-    
-    st.session_state['alertas'] = alertas
-    st.session_state['retraso_pred'] = retraso_pred
-    st.session_state['materiales_optimos'] = materiales_optimos
-    st.session_state['params'] = {
-        'tipo': tipo_nuevo,
-        'clima': clima_nuevo,
-        'presupuesto': presupuesto_nuevo,
-        'duracion': duracion_nuevo,
-        'materiales': materiales_nuevo,
-        'mano_obra': mano_obra_nuevo
-    }
-
 # Aplicar filtros
 df_filtrado = df.copy()
 if tipos:
@@ -333,7 +289,7 @@ if climas:
     df_filtrado = df_filtrado[df_filtrado['Clima'].isin(climas)]
 
 # ============================================
-# MÉTRICAS PRINCIPALES
+# MÉTRICAS PRINCIPALES (CON FONDOS ORIGINALES)
 # ============================================
 st.markdown("""
 <h2 style='color: #2c3e50;'>📊 PANEL DE CONTROL</h2>
@@ -342,59 +298,140 @@ st.markdown("""
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.markdown(f"""
-    <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ddd;'>
-        <h3 style='color: #2c3e50; margin: 0;'>📋 TOTAL</h3>
-        <h1 style='color: #2c3e50; margin: 0; font-size: 48px;'>{len(df_filtrado)}</h1>
-        <p style='color: #7f8c8d; margin: 0;'>Proyectos</p>
+    st.markdown("""
+    <div style='background-color: #3498db; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>📋 TOTAL</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{}</h1>
+        <p style='color: white; margin: 0;'>Proyectos</p>
     </div>
-    """, unsafe_allow_html=True)
+    """.format(len(df_filtrado)), unsafe_allow_html=True)
 
 with col2:
     retraso_prom = df_filtrado['Retraso'].mean()
-    color_texto = "#e67e22" if retraso_prom > 0 else "#27ae60"
+    color_retraso = "#27ae60" if retraso_prom <= 0 else "#e67e22" if retraso_prom <= 30 else "#e74c3c"
     st.markdown(f"""
-    <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ddd;'>
-        <h3 style='color: #2c3e50; margin: 0;'>⏱️ RETRASO</h3>
-        <h1 style='color: {color_texto}; margin: 0; font-size: 48px;'>{retraso_prom:.1f}</h1>
-        <p style='color: #7f8c8d; margin: 0;'>Días promedio</p>
+    <div style='background-color: {color_retraso}; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>⏱️ RETRASO</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{retraso_prom:.1f}</h1>
+        <p style='color: white; margin: 0;'>Días promedio</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
     sobrecosto_prom = df_filtrado['Desviacion_Costo'].mean()
     st.markdown(f"""
-    <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ddd;'>
-        <h3 style='color: #2c3e50; margin: 0;'>💰 SOBRECOSTO</h3>
-        <h1 style='color: #9b59b6; margin: 0; font-size: 48px;'>{sobrecosto_prom:.1f}%</h1>
-        <p style='color: #7f8c8d; margin: 0;'>Promedio</p>
+    <div style='background-color: #9b59b6; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>💰 SOBRECOSTO</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{sobrecosto_prom:.1f}%</h1>
+        <p style='color: white; margin: 0;'>Promedio</p>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
     proyectos_riesgo = len(df_filtrado[df_filtrado['Retraso'] > 30])
     st.markdown(f"""
-    <div style='background-color: #f0f2f6; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ddd;'>
-        <h3 style='color: #2c3e50; margin: 0;'>⚠️ ALERTAS</h3>
-        <h1 style='color: #e74c3c; margin: 0; font-size: 48px;'>{proyectos_riesgo}</h1>
-        <p style='color: #7f8c8d; margin: 0;'>Alto riesgo</p>
+    <div style='background-color: #e74c3c; padding: 20px; border-radius: 10px; text-align: center;'>
+        <h3 style='color: white; margin: 0;'>⚠️ ALERTAS</h3>
+        <h1 style='color: white; margin: 0; font-size: 48px;'>{proyectos_riesgo}</h1>
+        <p style='color: white; margin: 0;'>Alto riesgo</p>
     </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ============================================
-# SECCIÓN DE ALERTAS
+# SIMULADOR DE IA (EN EL ÁREA PRINCIPAL)
 # ============================================
-if 'alertas' in st.session_state:
+st.markdown("""
+<h2 style='color: #2c3e50;'>🤖 SIMULADOR DE ESCENARIOS CON IA</h2>
+<p style='color: #7f8c8d;'>Configura un proyecto y descubre cómo lograr RETRASO CERO (✅ VERDE)</p>
+""", unsafe_allow_html=True)
+
+# Mostrar leyenda de colores
+col_color1, col_color2, col_color3 = st.columns(3)
+with col_color1:
     st.markdown("""
-    <h2 style='color: #e67e22;'>🚨 ALERTAS DEL SISTEMA IA</h2>
+    <div style='background-color: #27ae60; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>✅ VERDE</h4>
+        <p style='color: white; margin: 0;'>Retraso ≤ 0</p>
+        <p style='color: white; margin: 0;'>Proyecto a tiempo</p>
+    </div>
     """, unsafe_allow_html=True)
+with col_color2:
+    st.markdown("""
+    <div style='background-color: #f39c12; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>🟡 AMARILLO</h4>
+        <p style='color: white; margin: 0;'>0-30 días</p>
+        <p style='color: white; margin: 0;'>Riesgo moderado</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_color3:
+    st.markdown("""
+    <div style='background-color: #e74c3c; padding: 10px; border-radius: 5px; text-align: center;'>
+        <h4 style='color: white; margin: 0;'>🔴 ROJO</h4>
+        <p style='color: white; margin: 0;'> > 30 días</p>
+        <p style='color: white; margin: 0;'>Alto riesgo</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# Inputs del simulador
+col_sim1, col_sim2 = st.columns(2)
+
+with col_sim1:
+    tipo_sim = st.selectbox("🏗️ Tipo de Obra", df['Tipo de Obra'].unique(), key='tipo_sim')
+    clima_sim = st.selectbox("☁️ Clima", df['Clima'].unique(), key='clima_sim')
+    presupuesto_sim = st.number_input("💰 Presupuesto ($)", 
+                                      min_value=1_000_000, 
+                                      max_value=50_000_000, 
+                                      value=25_000_000,
+                                      step=1_000_000)
+
+with col_sim2:
+    duracion_sim = st.number_input("📅 Duración estimada (días)", 
+                                   min_value=50, 
+                                   max_value=800, 
+                                   value=300,
+                                   step=10)
+    materiales_sim = st.number_input("🏗️ Materiales (ton)", 
+                                     min_value=1000, 
+                                     max_value=30000, 
+                                     value=10000,
+                                     step=500)
+    mano_obra_sim = st.number_input("👷 Mano de obra (horas)", 
+                                    min_value=5000, 
+                                    max_value=200000, 
+                                    value=50000,
+                                    step=5000)
+
+if st.button("🎯 SIMULAR PROYECTO", use_container_width=True):
+    alertas, retraso_pred, materiales_optimos, diff_materiales = generar_alertas(
+        tipo_sim, clima_sim, presupuesto_sim, duracion_sim, 
+        materiales_sim, mano_obra_sim
+    )
     
-    col_a1, col_a2 = st.columns(2)
+    st.session_state['sim_alertas'] = alertas
+    st.session_state['sim_retraso'] = retraso_pred
+    st.session_state['sim_materiales_optimos'] = materiales_optimos
+    st.session_state['sim_diff'] = diff_materiales
+    st.session_state['sim_params'] = {
+        'tipo': tipo_sim,
+        'clima': clima_sim,
+        'materiales': materiales_sim,
+        'mano_obra': mano_obra_sim,
+        'duracion': duracion_sim
+    }
+
+# Mostrar resultados de la simulación
+if 'sim_alertas' in st.session_state:
+    st.markdown("---")
+    st.markdown("### 📊 RESULTADOS DE LA SIMULACIÓN")
     
-    with col_a1:
-        retraso = st.session_state['retraso_pred']
+    col_res1, col_res2 = st.columns(2)
+    
+    with col_res1:
+        retraso = st.session_state['sim_retraso']
         if retraso <= 0:
             color = "#27ae60"
             emoji = "✅"
@@ -404,7 +441,7 @@ if 'alertas' in st.session_state:
             emoji = "🟡"
             estado = "BAJO RIESGO"
         elif retraso <= 30:
-            color = "#e67e22"
+            color = "#f39c12"
             emoji = "⚠️"
             estado = "RIESGO MODERADO"
         else:
@@ -413,54 +450,57 @@ if 'alertas' in st.session_state:
             estado = "ALTO RIESGO"
         
         st.markdown(f"""
-        <div style='background-color: white; padding: 15px; border-radius: 10px; text-align: center; border: 2px solid {color};'>
-            <h1 style='color: {color}; margin: 0; font-size: 48px;'>{emoji}</h1>
-            <h2 style='color: {color}; margin: 0;'>{retraso:.1f} días</h2>
-            <p style='color: #2c3e50; margin: 0;'>{estado}</p>
+        <div style='background-color: {color}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h1 style='color: white; margin: 0; font-size: 48px;'>{emoji}</h1>
+            <h2 style='color: white; margin: 0;'>{retraso:.1f} DÍAS</h2>
+            <p style='color: white; margin: 0;'>{estado}</p>
         </div>
         """, unsafe_allow_html=True)
     
-    with col_a2:
-        diff_mat = ((st.session_state['params']['materiales'] - st.session_state['materiales_optimos']) / st.session_state['materiales_optimos']) * 100
-        if abs(diff_mat) < 15:
+    with col_res2:
+        diff = st.session_state['sim_diff']
+        if abs(diff) < 15:
             color_mat = "#27ae60"
             estado_mat = "ÓPTIMO"
-        elif abs(diff_mat) < 30:
-            color_mat = "#e67e22"
+        elif abs(diff) < 30:
+            color_mat = "#f39c12"
             estado_mat = "REGULAR"
         else:
             color_mat = "#e74c3c"
             estado_mat = "CRÍTICO"
         
         st.markdown(f"""
-        <div style='background-color: white; padding: 15px; border-radius: 10px; text-align: center; border: 2px solid {color_mat};'>
-            <h1 style='color: {color_mat}; margin: 0; font-size: 48px;'>📦</h1>
-            <h2 style='color: {color_mat}; margin: 0;'>{diff_mat:+.0f}%</h2>
-            <p style='color: #2c3e50; margin: 0;'>Materiales ({estado_mat})</p>
+        <div style='background-color: {color_mat}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h1 style='color: white; margin: 0; font-size: 48px;'>📦</h1>
+            <h2 style='color: white; margin: 0;'>{diff:+.0f}%</h2>
+            <p style='color: white; margin: 0;'>Materiales ({estado_mat})</p>
+            <p style='color: white; margin: 5px 0 0 0; font-size: 12px;'>Óptimo: {st.session_state['sim_materiales_optimos']:,.0f} ton</p>
         </div>
         """, unsafe_allow_html=True)
     
-    # Lista de alertas
-    st.markdown("### 📋 DETALLE DE ALERTAS:")
-    alertas = st.session_state['alertas']
-    
-    for alerta in alertas:
+    # Mostrar alertas
+    st.markdown("### 🚨 ALERTAS GENERADAS:")
+    for alerta in st.session_state['sim_alertas']:
         if "🔴" in alerta:
             border_color = "#e74c3c"
+            bg_color = "#ffebee"
         elif "🟡" in alerta:
-            border_color = "#e67e22"
+            border_color = "#f39c12"
+            bg_color = "#fff8e1"
         elif "✅" in alerta:
             border_color = "#27ae60"
+            bg_color = "#e8f5e9"
         else:
             border_color = "#3498db"
+            bg_color = "#e3f2fd"
         
         st.markdown(f"""
-        <div style='background-color: white; border-left: 5px solid {border_color}; padding: 10px; margin: 5px 0; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-            <p style='margin: 0; color: #2c3e50;'>{alerta}</p>
+        <div style='background-color: {bg_color}; border-left: 5px solid {border_color}; padding: 15px; margin: 10px 0; border-radius: 5px;'>
+            <p style='margin: 0; font-size: 16px;'>{alerta}</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    st.markdown("---")
+
+st.markdown("---")
 
 # ============================================
 # GRÁFICOS
@@ -601,40 +641,6 @@ with col2:
             st.warning("📌 **Interpretación:** Relación moderada - Optimizar mano de obra ayuda")
         else:
             st.error("📌 **Interpretación:** Relación fuerte - La mano de obra es clave")
-
-st.markdown("---")
-
-# ============================================
-# SIMULADOR DE IA
-# ============================================
-st.markdown("""
-<h2 style='color: #2c3e50;'>🤖 SIMULADOR DE ESCENARIOS CON IA</h2>
-<p style='color: #7f8c8d;'>Configura un proyecto en la barra lateral y analiza los resultados</p>
-""", unsafe_allow_html=True)
-
-# Mostrar leyenda de colores
-col_color1, col_color2, col_color3 = st.columns(3)
-with col_color1:
-    st.markdown("""
-    <div style='background-color: #27ae60; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>✅ VERDE</h4>
-        <p style='color: white; margin: 0;'>Retraso ≤ 0</p>
-    </div>
-    """, unsafe_allow_html=True)
-with col_color2:
-    st.markdown("""
-    <div style='background-color: #e67e22; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>🟡 AMARILLO</h4>
-        <p style='color: white; margin: 0;'>0-30 días</p>
-    </div>
-    """, unsafe_allow_html=True)
-with col_color3:
-    st.markdown("""
-    <div style='background-color: #e74c3c; padding: 10px; border-radius: 5px; text-align: center;'>
-        <h4 style='color: white; margin: 0;'>🔴 ROJO</h4>
-        <p style='color: white; margin: 0;'> > 30 días</p>
-    </div>
-    """, unsafe_allow_html=True)
 
 # ============================================
 # TABLA DE DATOS
