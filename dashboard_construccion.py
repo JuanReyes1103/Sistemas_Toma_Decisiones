@@ -472,7 +472,7 @@ with col_g2:
 st.markdown("---")
 
 # ============================================
-# GRÁFICAS ADICIONALES DE RIESGO (CORREGIDO)
+# GRÁFICAS ADICIONALES DE RIESGO (CORREGIDO - SIN ERROR DE KEY)
 # ============================================
 st.markdown("##### 🌍 Análisis de Niveles de Riesgo")
 
@@ -484,7 +484,6 @@ if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
         riesgo_global = df_filtrado['Nivel_Riesgo'].value_counts().reset_index()
         riesgo_global.columns = ['Nivel de Riesgo', 'Cantidad']
         
-        # Verificar que hay datos
         if not riesgo_global.empty:
             color_map_riesgo = {
                 '🟢 Controlado (0-5%)': '#A8E6CF',
@@ -498,7 +497,7 @@ if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
                 names='Nivel de Riesgo',
                 color='Nivel de Riesgo',
                 color_discrete_map=color_map_riesgo,
-                title='Distribución por nivel de riesgo',
+                title='Distribución global por nivel de riesgo',
                 hole=0.3
             )
             
@@ -515,18 +514,23 @@ if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
             st.info("No hay datos suficientes para mostrar la distribución de riesgos")
     
     with col_g4:
-        # Barras apiladas: Tipo de Obra vs Nivel de Riesgo
-        if 'Tipo de Obra' in df_filtrado.columns and 'Nivel_Riesgo' in df_filtrado.columns:
+        # Barras apiladas: Tipo de Obra vs Nivel de Riesgo - VERSIÓN CORREGIDA
+        if 'Tipo de Obra' in df_filtrado.columns:
+            # Crear tabla de contingencia
             riesgo_tipo = pd.crosstab(
                 df_filtrado['Tipo de Obra'], 
                 df_filtrado['Nivel_Riesgo']
             ).reset_index()
             
-            if not riesgo_tipo.empty:
+            # Verificar qué columnas de riesgo existen realmente
+            columnas_riesgo = [col for col in riesgo_tipo.columns if col != 'Tipo de Obra']
+            
+            if len(columnas_riesgo) > 0 and not riesgo_tipo.empty:
+                # Hacer melt solo con las columnas que existen
                 riesgo_tipo_long = pd.melt(
                     riesgo_tipo, 
                     id_vars=['Tipo de Obra'], 
-                    value_vars=['🟢 Controlado (0-5%)', '🟡 Riesgo Moderado (5-15%)', '🔴 Crítico (>15%)'],
+                    value_vars=columnas_riesgo,  # Usar solo las columnas que existen
                     var_name='Nivel de Riesgo', 
                     value_name='Cantidad'
                 )
@@ -555,19 +559,26 @@ if not df_filtrado.empty and 'Nivel_Riesgo' in df_filtrado.columns:
                     fig4.update_layout(
                         height=400,
                         xaxis_title="",
-                        yaxis_title="Cantidad de proyectos"
+                        yaxis_title="Cantidad de proyectos",
+                        legend_title="",
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)'
+                    )
+                    
+                    fig4.update_traces(
+                        textfont_size=11,
+                        textposition='inside'
                     )
                     
                     st.plotly_chart(fig4, use_container_width=True)
                 else:
-                    st.info("No hay datos suficientes para mostrar riesgos por tipo de obra")
+                    st.info("No hay datos con cantidad > 0 para mostrar")
             else:
-                st.info("No hay datos suficientes para el análisis cruzado")
+                st.info("No hay suficientes categorías de riesgo en los datos filtrados")
         else:
-            st.info("Columnas necesarias no disponibles")
+            st.info("Columna 'Tipo de Obra' no disponible")
 else:
-    # Mostrar mensaje si no hay datos o falta la columna
-    st.info("No hay proyectos en el filtro actual o la columna de riesgo no está disponible")
+    st.info("No hay proyectos en el filtro actual o selecciona otros filtros")
 
 # ============================================
 # MODELO MATEMÁTICO - OPTIMIZADOR (VERSIÓN SIMPLE QUE SÍ FUNCIONA)
